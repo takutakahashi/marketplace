@@ -4,8 +4,9 @@ description: |
   Interact with agentapi-proxy API using API Key authentication for session management.
   Use when you need to: (1) Create new agentapi sessions, (2) Search and list existing sessions,
   (3) Delete sessions, (4) Route requests to specific session instances, (5) Manage session sharing,
-  (6) Access user settings and notifications. Supports multiple authentication methods including
-  static API keys (X-API-Key header) and Authorization Bearer tokens.
+  (6) Access user settings and notifications, (7) View notification history. Supports multiple
+  authentication methods including static API keys (X-API-Key header) and Authorization Bearer tokens.
+  Note: For schedule management, use the schedule-management skill instead.
 ---
 
 # agentapi-proxy API
@@ -88,6 +89,31 @@ curl -H "X-API-Key: YOUR_API_KEY" \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{"content": "Hello", "type": "user"}'
+```
+
+### Viewing Notification History
+
+Get the history of notifications for the current user:
+
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/notifications/history
+```
+
+Response:
+```json
+{
+  "notifications": [
+    {
+      "id": "notif-abc123",
+      "title": "Session Started",
+      "body": "Your scheduled session has started",
+      "url": "https://api.example.com/sessions/550e8400",
+      "created_at": "2024-01-02T09:00:00Z",
+      "read": false
+    }
+  ]
+}
 ```
 
 ## API Reference

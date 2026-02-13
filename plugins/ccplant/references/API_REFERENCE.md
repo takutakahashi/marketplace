@@ -4,6 +4,7 @@
 
 - [Session Management Endpoints](#session-management-endpoints)
 - [Session Sharing Endpoints](#session-sharing-endpoints)
+- [Schedule Management Endpoints](#schedule-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
 - [Notification Endpoints](#notification-endpoints)
 - [Authentication Endpoints](#authentication-endpoints)
@@ -199,6 +200,245 @@ Access a shared session in read-only mode (no authentication required).
 curl https://api.example.com/s/sh_abc123def456/messages
 ```
 
+## Schedule Management Endpoints
+
+### POST /schedules
+
+Create a new schedule for delayed or recurring session execution.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "Daily Standup",
+  "cron_expr": "0 9 * * 1-5",
+  "session_config": {
+    "tags": {
+      "repository": "org/standup-bot"
+    },
+    "params": {
+      "message": "Generate daily standup"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "schedule-abc123",
+  "name": "Daily Standup",
+  "status": "active",
+  "cron_expr": "0 9 * * 1-5",
+  "created_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Examples:**
+
+One-time delayed execution:
+```bash
+curl -X POST https://api.example.com/schedules \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Code Review",
+    "scheduled_at": "2025-01-15T14:00:00Z",
+    "session_config": {
+      "tags": {
+        "repository": "org/repo"
+      },
+      "params": {
+        "message": "Review PRs"
+      }
+    }
+  }'
+```
+
+Recurring execution (cron):
+```bash
+curl -X POST https://api.example.com/schedules \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Daily Standup",
+    "cron_expr": "0 9 * * 1-5",
+    "session_config": {
+      "tags": {
+        "repository": "org/standup-bot"
+      },
+      "params": {
+        "message": "Generate daily standup"
+      }
+    }
+  }'
+```
+
+### GET /schedules
+
+List schedules. Non-admin users can see their own schedules and team-scoped schedules they have access to.
+
+**Permissions Required:** `session:list`
+
+**Query Parameters:**
+- `status`: Filter by schedule status (e.g., `active`, `paused`)
+- `scope`: Filter by resource scope (e.g., `user`, `team`)
+- `team_id`: Filter by team ID (e.g., `org/team-slug`)
+
+**Response:**
+```json
+{
+  "schedules": [
+    {
+      "id": "schedule-abc123",
+      "name": "Daily Standup",
+      "status": "active",
+      "cron_expr": "0 9 * * 1-5",
+      "created_at": "2024-01-01T12:00:00Z",
+      "next_run": "2024-01-02T09:00:00Z"
+    }
+  ]
+}
+```
+
+**Examples:**
+```bash
+# List all schedules
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/schedules
+
+# Filter by status
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/schedules?status=active"
+
+# Filter by team
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/schedules?team_id=org/my-team"
+```
+
+### GET /schedules/:id
+
+Get a specific schedule by ID.
+
+**Permissions Required:** `session:read`
+
+**Response:**
+```json
+{
+  "id": "schedule-abc123",
+  "name": "Daily Standup",
+  "status": "active",
+  "cron_expr": "0 9 * * 1-5",
+  "session_config": {
+    "tags": {
+      "repository": "org/standup-bot"
+    },
+    "params": {
+      "message": "Generate daily standup"
+    }
+  },
+  "created_at": "2024-01-01T12:00:00Z",
+  "next_run": "2024-01-02T09:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/schedules/schedule-abc123
+```
+
+**Access Control:**
+- Users can only access their own schedules
+- Admin users can access all schedules
+
+### PUT /schedules/:id
+
+Update an existing schedule.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "Updated Schedule Name",
+  "status": "paused",
+  "cron_expr": "0 10 * * 1-5"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "schedule-abc123",
+  "name": "Updated Schedule Name",
+  "status": "paused",
+  "cron_expr": "0 10 * * 1-5",
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/schedules/schedule-abc123 \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Schedule Name",
+    "status": "paused"
+  }'
+```
+
+**Access Control:**
+- Users can only update their own schedules
+
+### DELETE /schedules/:id
+
+Delete a schedule by ID.
+
+**Permissions Required:** `session:delete`
+
+**Response:**
+```json
+{
+  "message": "Schedule deleted successfully",
+  "id": "schedule-abc123"
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/schedules/schedule-abc123 \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Access Control:**
+- Users can only delete their own schedules
+
+### POST /schedules/:id/trigger
+
+Manually trigger a schedule to immediately create a new session.
+
+**Permissions Required:** `session:create`
+
+**Response:**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "triggered_at": "2024-01-02T15:30:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/schedules/schedule-abc123/trigger \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Access Control:**
+- Users can only trigger their own schedules
+
 ## User & Settings Endpoints
 
 ### GET /user/info
@@ -338,6 +578,34 @@ Unsubscribe from notifications.
 ```bash
 curl -X DELETE https://api.example.com/notification/subscribe \
   -H "X-API-Key: YOUR_API_KEY"
+```
+
+### GET /notifications/history
+
+Get the history of notifications for the current user.
+
+**Permissions Required:** `session:read`
+
+**Response:**
+```json
+{
+  "notifications": [
+    {
+      "id": "notif-abc123",
+      "title": "Session Started",
+      "body": "Your scheduled session has started",
+      "url": "https://api.example.com/sessions/550e8400",
+      "created_at": "2024-01-02T09:00:00Z",
+      "read": false
+    }
+  ]
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/notifications/history
 ```
 
 ## Authentication Endpoints
