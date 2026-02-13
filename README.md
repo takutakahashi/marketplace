@@ -14,7 +14,7 @@ Add this marketplace to Claude Code:
 
 ### ccplant
 
-Comprehensive toolkit for agentapi-proxy with two main skills: API client for session management and webhook automation.
+Comprehensive toolkit for agentapi-proxy with three main skills: API client for session management, webhook automation, and schedule management for delayed and recurring tasks.
 
 **Install:**
 ```bash
@@ -37,10 +37,18 @@ Comprehensive toolkit for agentapi-proxy with two main skills: API client for se
 - Webhook lifecycle management (create, update, delete, regenerate secrets)
 - Integration examples for popular services
 
+#### 3. Schedule Management (`schedule-management`)
+- Create one-time and recurring schedules for automated session execution
+- Support for cron expressions and ISO 8601 timestamps
+- Schedule lifecycle management (create, list, update, delete, trigger)
+- Team and user-scoped access control
+- Use cases: daily reports, code reviews, incident drills, delayed deployments
+
 **Included Resources:**
 - **skills/api-client/SKILL.md**: Session management workflows
 - **skills/webhook-management/SKILL.md**: Webhook automation guide
-- **references/API_REFERENCE.md**: Complete API endpoint documentation
+- **skills/schedule-management/SKILL.md**: Schedule management guide
+- **references/API_REFERENCE.md**: Complete API endpoint documentation (includes schedule endpoints)
 - **references/AUTHENTICATION.md**: Authentication methods and setup
 - **references/PERMISSIONS.md**: Role-based access control
 - **references/WEBHOOK_REFERENCE.md**: Webhook API and configuration
@@ -66,11 +74,19 @@ After installation, Claude Code will have knowledge of:
 - Trigger conditions (GitHub events, JSONPath, Go templates)
 - Automated session creation from external events
 
+**Schedule Management:**
+- Schedule delayed or recurring session execution
+- Support for one-time and cron-based schedules
+- Team and user-scoped schedules
+- Manual schedule triggering
+- Use cases: daily reports, code reviews, incident drills
+
 Example interactions:
 - "How do I create a new agentapi session with an API key?"
 - "Set up a webhook to review PRs automatically"
 - "Create a Slack webhook for critical incidents"
-- "Show me how to configure webhook triggers with JSONPath"
+- "Show me how to configure webhook triggers with Go templates"
+- "Create a daily schedule to run standup bot every weekday at 9am"
 - "What permissions does the user role have?"
 
 ## Contributing

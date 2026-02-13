@@ -33,8 +33,7 @@ Create a new webhook.
       "enabled": true,
       "conditions": {
         "github": {...},
-        "jsonpath": [...],
-        "gotemplate": "..."
+        "go_template": "..."
       },
       "session_config": {...},
       "stop_on_match": true

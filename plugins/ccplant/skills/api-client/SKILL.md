@@ -6,6 +6,7 @@ description: |
   (3) Delete sessions, (4) Route requests to specific session instances, (5) Manage session sharing,
   (6) Access user settings and notifications. Supports multiple authentication methods including
   static API keys (X-API-Key header) and Authorization Bearer tokens.
+  Note: For schedule management, use the schedule-management skill instead.
 ---
 
 # agentapi-proxy API

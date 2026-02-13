@@ -5,7 +5,7 @@ description: |
   Use when you need to: (1) Create GitHub or custom webhooks, (2) Update webhook configurations,
   (3) List existing webhooks, (4) Delete webhooks, (5) Regenerate webhook secrets,
   (6) Configure webhook triggers and conditions. Supports GitHub webhooks and custom webhooks
-  with JSONPath-based filtering.
+  with Go template-based filtering.
 ---
 
 # Webhook Management
@@ -82,18 +82,7 @@ curl -X POST https://api.example.com/webhooks \
       {
         "name": "Critical incident",
         "conditions": {
-          "jsonpath": [
-            {
-              "path": "$.event.type",
-              "operator": "eq",
-              "value": "incident"
-            },
-            {
-              "path": "$.event.severity",
-              "operator": "eq",
-              "value": "critical"
-            }
-          ]
+          "go_template": "{{ and (eq .event.type \"incident\") (eq .event.severity \"critical\") }}"
         },
         "session_config": {
           "initial_message_template": "Incident: {{.event.title}}",
