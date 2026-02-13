@@ -51,10 +51,7 @@ curl -X POST https://api.example.com/webhooks \
       {
         "name": "Critical incident",
         "conditions": {
-          "jsonpath": [
-            {"path": "$.event.type", "operator": "eq", "value": "incident"},
-            {"path": "$.event.severity", "operator": "eq", "value": "critical"}
-          ]
+          "go_template": "{{ and (eq .event.type \"incident\") (eq .event.severity \"critical\") }}"
         },
         "session_config": {
           "initial_message_template": "Incident: {{.event.title}}\nSeverity: {{.event.severity}}",
@@ -78,10 +75,7 @@ curl -X POST https://api.example.com/webhooks \
       {
         "name": "High CPU",
         "conditions": {
-          "jsonpath": [
-            {"path": "$.alert_type", "operator": "eq", "value": "metric_alert"},
-            {"path": "$.current_value", "operator": "gt", "value": 90}
-          ]
+          "go_template": "{{ and (eq .alert_type \"metric_alert\") (gt .current_value 90) }}"
         },
         "session_config": {
           "initial_message_template": "CPU Alert: {{.host}} at {{.current_value}}%",
@@ -105,9 +99,7 @@ curl -X POST https://api.example.com/webhooks \
       {
         "name": "Incident triggered",
         "conditions": {
-          "jsonpath": [
-            {"path": "$.event.event_type", "operator": "eq", "value": "incident.triggered"}
-          ]
+          "go_template": "{{ eq .event.event_type \"incident.triggered\" }}"
         },
         "session_config": {
           "initial_message_template": "Incident {{.event.data.id}}: {{.event.data.title}}",
@@ -132,7 +124,7 @@ curl -X POST https://api.example.com/webhooks \
         "name": "Deployment failed",
         "priority": 100,
         "conditions": {
-          "gotemplate": "{{ and (eq .event \"deployment\") (eq .status \"failed\") }}"
+          "go_template": "{{ and (eq .event \"deployment\") (eq .status \"failed\") }}"
         },
         "session_config": {
           "initial_message_template": "Deployment failed: {{.service}} v{{.version}}",
@@ -144,7 +136,7 @@ curl -X POST https://api.example.com/webhooks \
         "name": "Deployment succeeded",
         "priority": 10,
         "conditions": {
-          "gotemplate": "{{ and (eq .event \"deployment\") (eq .status \"success\") }}"
+          "go_template": "{{ and (eq .event \"deployment\") (eq .status \"success\") }}"
         },
         "session_config": {
           "initial_message_template": "Deployed: {{.service}} v{{.version}} to {{.environment}}",

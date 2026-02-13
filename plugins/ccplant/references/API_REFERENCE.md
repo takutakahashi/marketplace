@@ -580,34 +580,6 @@ curl -X DELETE https://api.example.com/notification/subscribe \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
-### GET /notifications/history
-
-Get the history of notifications for the current user.
-
-**Permissions Required:** `session:read`
-
-**Response:**
-```json
-{
-  "notifications": [
-    {
-      "id": "notif-abc123",
-      "title": "Session Started",
-      "body": "Your scheduled session has started",
-      "url": "https://api.example.com/sessions/550e8400",
-      "created_at": "2024-01-02T09:00:00Z",
-      "read": false
-    }
-  ]
-}
-```
-
-**Example:**
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/notifications/history
-```
-
 ## Authentication Endpoints
 
 These endpoints are typically used for OAuth flows and do not require API key authentication.

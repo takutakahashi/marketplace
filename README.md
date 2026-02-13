@@ -27,7 +27,6 @@ Comprehensive toolkit for agentapi-proxy with three main skills: API client for 
 - Complete API endpoint reference with curl examples
 - Multiple authentication methods (X-API-Key, Bearer token, GitHub OAuth, AWS IAM)
 - Session lifecycle management (create, search, delete, route)
-- Notification history access
 - Detailed permission and RBAC documentation
 - Helper script for making API requests
 
@@ -86,10 +85,9 @@ Example interactions:
 - "How do I create a new agentapi session with an API key?"
 - "Set up a webhook to review PRs automatically"
 - "Create a Slack webhook for critical incidents"
-- "Show me how to configure webhook triggers with JSONPath"
+- "Show me how to configure webhook triggers with Go templates"
 - "Create a daily schedule to run standup bot every weekday at 9am"
 - "What permissions does the user role have?"
-- "Show me my notification history"
 
 ## Contributing
 

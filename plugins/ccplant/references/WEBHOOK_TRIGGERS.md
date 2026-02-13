@@ -19,8 +19,7 @@ Triggers define when a webhook should create a session. Each trigger has:
   "enabled": true,
   "conditions": {
     "github": {...},
-    "jsonpath": [...],
-    "gotemplate": "..."
+    "go_template": "..."
   },
   "session_config": {...},
   "stop_on_match": true
@@ -60,54 +59,13 @@ For GitHub webhooks only.
 - `draft`: Filter draft PRs (true/false/null)
 - `sender`: GitHub usernames
 
-### JSONPath Conditions
-
-For custom webhooks and advanced GitHub filtering.
-
-```json
-{
-  "jsonpath": [
-    {
-      "path": "$.event.type",
-      "operator": "eq",
-      "value": "deployment"
-    },
-    {
-      "path": "$.event.severity",
-      "operator": "in",
-      "value": ["critical", "high"]
-    },
-    {
-      "path": "$.tags",
-      "operator": "contains",
-      "value": "production"
-    }
-  ]
-}
-```
-
-**Operators:**
-
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `eq` | Equals | `$.status == "success"` |
-| `ne` | Not equals | `$.status != "failed"` |
-| `contains` | String/array contains | `$.tags contains "prod"` |
-| `matches` | Regex match | `$.name matches "^api-.*"` |
-| `in` | Value in array | `$.env in ["prod", "stage"]` |
-| `exists` | Path exists | `$.deployment.id exists` |
-| `gt` | Greater than | `$.cpu > 90` |
-| `lt` | Less than | `$.cpu < 50` |
-| `gte` | Greater than or equal | `$.memory >= 80` |
-| `lte` | Less than or equal | `$.disk <= 20` |
-
 ### Go Template Conditions
 
 Most flexible option, supports both GitHub and custom webhooks.
 
 ```json
 {
-  "gotemplate": "{{ and (eq .action \"opened\") (not .pull_request.draft) }}"
+  "go_template": "{{ and (eq .action \"opened\") (not .pull_request.draft) }}"
 }
 ```
 
@@ -199,23 +157,7 @@ Triggers are evaluated in priority order (highest first). If `stop_on_match` is 
 {
   "name": "Critical incident",
   "conditions": {
-    "jsonpath": [
-      {
-        "path": "$.event.type",
-        "operator": "eq",
-        "value": "incident"
-      },
-      {
-        "path": "$.event.severity",
-        "operator": "eq",
-        "value": "critical"
-      },
-      {
-        "path": "$.event.environment",
-        "operator": "eq",
-        "value": "production"
-      }
-    ]
+    "go_template": "{{ and (eq .event.type \"incident\") (eq .event.severity \"critical\") (eq .event.environment \"production\") }}"
   },
   "session_config": {
     "initial_message_template": "🚨 Critical Incident\n\nTitle: {{.event.title}}\nEnvironment: {{.event.environment}}\nReported by: {{.user.name}}\n\nInvestigate and respond.",
@@ -234,7 +176,7 @@ Triggers are evaluated in priority order (highest first). If `stop_on_match` is 
 {
   "name": "High CPU alert",
   "conditions": {
-    "gotemplate": "{{ and (eq .alert_type \"metric_alert\") (gt .current_value 90) }}"
+    "go_template": "{{ and (eq .alert_type \"metric_alert\") (gt .current_value 90) }}"
   },
   "session_config": {
     "initial_message_template": "⚠️ High CPU Alert\n\nHost: {{.host}}\nCurrent: {{.current_value}}%\nThreshold: {{.threshold}}%\n\nScale or investigate.",
@@ -247,7 +189,7 @@ Triggers are evaluated in priority order (highest first). If `stop_on_match` is 
 
 ## Combining Conditions
 
-All condition types can be combined. They are evaluated with AND logic.
+GitHub conditions and Go template conditions can be combined. They are evaluated with AND logic.
 
 ```json
 {
@@ -255,19 +197,11 @@ All condition types can be combined. They are evaluated with AND logic.
     "github": {
       "events": ["pull_request"]
     },
-    "jsonpath": [
-      {
-        "path": "$.pull_request.changed_files",
-        "operator": "gt",
-        "value": 10
-      }
-    ],
-    "gotemplate": "{{ contains .pull_request.title \"refactor\" }}"
+    "go_template": "{{ and (gt .pull_request.changed_files 10) (contains .pull_request.title \"refactor\") }}"
   }
 }
 ```
 
 This matches only when:
 1. Event is `pull_request` (GitHub condition)
-2. Changed files > 10 (JSONPath condition)
-3. Title contains "refactor" (Go template condition)
+2. Changed files > 10 AND title contains "refactor" (Go template condition)
