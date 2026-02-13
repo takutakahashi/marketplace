@@ -10,15 +10,15 @@
   },
   "plugins": [
     {
-      "name": "agentapi-proxy-api",
-      "source": "./plugins/agentapi-proxy-api",
-      "description": "Interact with agentapi-proxy API using API Key authentication for session management. Supports session creation, search, deletion, and routing.",
-      "version": "1.0.0",
+      "name": "ccplant",
+      "source": "./plugins/ccplant",
+      "description": "Comprehensive toolkit for agentapi-proxy: API client for session management and webhook automation. Includes API authentication, session lifecycle management, and webhook configuration for GitHub and custom services.",
+      "version": "2.0.0",
       "author": {
         "name": "takutakahashi"
       },
       "license": "MIT",
-      "keywords": ["agentapi", "api", "authentication", "session-management"],
+      "keywords": ["agentapi", "api", "authentication", "session-management", "webhooks", "automation"],
       "category": "developer-tools"
     }
   ]

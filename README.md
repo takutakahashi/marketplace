@@ -12,41 +12,65 @@ Add this marketplace to Claude Code:
 
 ## Available Plugins
 
-### agentapi-proxy-api
+### ccplant
 
-Comprehensive plugin for interacting with the agentapi-proxy API using API Key authentication.
+Comprehensive toolkit for agentapi-proxy with two main skills: API client for session management and webhook automation.
 
 **Install:**
 ```bash
-/plugin install agentapi-proxy-api@takutakahashi-plugins
+/plugin install ccplant@takutakahashi-plugins
 ```
 
-**Features:**
-- Complete API endpoint reference with examples
-- Multiple authentication methods (X-API-Key, Bearer token)
+**Included Skills:**
+
+#### 1. API Client (`api-client`)
+- Complete API endpoint reference with curl examples
+- Multiple authentication methods (X-API-Key, Bearer token, GitHub OAuth, AWS IAM)
+- Session lifecycle management (create, search, delete, route)
 - Detailed permission and RBAC documentation
 - Helper script for making API requests
-- Configuration examples
+
+#### 2. Webhook Management (`webhook-management`)
+- Create and manage GitHub webhooks for PR automation
+- Configure custom webhooks for Slack, Datadog, PagerDuty
+- Advanced trigger conditions (GitHub events, JSONPath, Go templates)
+- Webhook lifecycle management (create, update, delete, regenerate secrets)
+- Integration examples for popular services
 
 **Included Resources:**
-- **SKILL.md**: Core workflow and quick start guide
-- **references/API_REFERENCE.md**: Complete endpoint documentation
+- **skills/api-client/SKILL.md**: Session management workflows
+- **skills/webhook-management/SKILL.md**: Webhook automation guide
+- **references/API_REFERENCE.md**: Complete API endpoint documentation
 - **references/AUTHENTICATION.md**: Authentication methods and setup
-- **references/PERMISSIONS.md**: Role-based access control details
+- **references/PERMISSIONS.md**: Role-based access control
+- **references/WEBHOOK_REFERENCE.md**: Webhook API and configuration
+- **references/WEBHOOK_TRIGGERS.md**: Trigger conditions and filtering
+- **references/WEBHOOK_EXAMPLES.md**: Service integration examples
 - **scripts/agentapi_request.sh**: Helper script for API requests
 - **assets/**: Configuration examples
 
 ## Usage
 
 After installation, Claude Code will have knowledge of:
+
+**API Client:**
 - agentapi-proxy API endpoints and usage
 - API Key authentication methods
 - Session management workflows
 - Permission and role configurations
 
+**Webhook Automation:**
+- Webhook creation and configuration
+- GitHub webhook integration for PR reviews
+- Custom webhook setup for Slack, Datadog, PagerDuty
+- Trigger conditions (GitHub events, JSONPath, Go templates)
+- Automated session creation from external events
+
 Example interactions:
-- "How do I create a new agentapi session?"
-- "Show me how to authenticate with an API key"
+- "How do I create a new agentapi session with an API key?"
+- "Set up a webhook to review PRs automatically"
+- "Create a Slack webhook for critical incidents"
+- "Show me how to configure webhook triggers with JSONPath"
 - "What permissions does the user role have?"
 
 ## Contributing
