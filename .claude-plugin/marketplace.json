@@ -1,0 +1,25 @@
+{
+  "name": "takutakahashi-plugins",
+  "owner": {
+    "name": "takutakahashi",
+    "email": "takutakahashi@gmail.com"
+  },
+  "metadata": {
+    "description": "Custom Claude Code plugins and skills for agentapi and related tools",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "agentapi-proxy-api",
+      "source": "./plugins/agentapi-proxy-api",
+      "description": "Interact with agentapi-proxy API using API Key authentication for session management. Supports session creation, search, deletion, and routing.",
+      "version": "1.0.0",
+      "author": {
+        "name": "takutakahashi"
+      },
+      "license": "MIT",
+      "keywords": ["agentapi", "api", "authentication", "session-management"],
+      "category": "developer-tools"
+    }
+  ]
+}
