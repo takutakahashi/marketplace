@@ -12,6 +12,16 @@ description: |
 
 This skill provides guidance for managing agentapi-proxy webhooks that automatically create sessions in response to external events.
 
+## ⚠️ Important: Always Use This Skill for Webhook Operations
+
+**When performing any webhook-related operations (creating, updating, listing, deleting, or modifying webhook configurations), always invoke this skill first rather than directly using curl or API calls.**
+
+This ensures:
+- Proper authentication and API endpoint configuration
+- Correct payload structure and validation
+- Access to up-to-date examples and best practices
+- Consistent error handling and guidance
+
 ## Overview
 
 Webhooks enable automatic session creation when events occur in external systems (GitHub, Slack, Datadog, custom services). Each webhook has:
