@@ -91,6 +91,13 @@ curl -H "X-API-Key: YOUR_API_KEY" \
   -d '{"content": "Hello", "type": "user"}'
 ```
 
+### Viewing Notification History
+
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/notifications/history
+```
+
 ## API Reference
 
 For complete API endpoint documentation, permissions, and authentication details, see:

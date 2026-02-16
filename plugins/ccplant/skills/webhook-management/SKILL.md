@@ -139,6 +139,36 @@ curl -X POST https://api.example.com/webhooks/WEBHOOK_ID/regenerate-secret \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
+### Testing a Webhook
+
+Test a webhook with a custom payload to validate trigger conditions:
+
+```bash
+# Dry run (test without creating a session)
+curl -X POST https://api.example.com/webhooks/WEBHOOK_ID/trigger \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": {
+      "event": "test_event",
+      "severity": "critical"
+    },
+    "dry_run": true
+  }'
+
+# Actual trigger (create a session)
+curl -X POST https://api.example.com/webhooks/WEBHOOK_ID/trigger \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": {
+      "event": "test_event",
+      "severity": "critical"
+    },
+    "dry_run": false
+  }'
+```
+
 ## Reference Documentation
 
 For detailed information, see:

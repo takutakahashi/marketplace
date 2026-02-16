@@ -223,6 +223,88 @@ curl -X POST https://api.example.com/webhooks/webhook-123/regenerate-secret \
 
 **Note:** After regenerating, update the webhook configuration in the external service (GitHub, Slack, etc.) with the new secret.
 
+### POST /webhooks/:id/trigger
+
+Trigger a webhook with a test payload.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "payload": {
+    "event": "custom_event",
+    "data": {
+      "key": "value"
+    }
+  },
+  "dry_run": true
+}
+```
+
+**Parameters:**
+- `payload`: The test payload to send to the webhook
+- `dry_run`: (optional, default: false) If true, only evaluates triggers and returns what would happen without creating a session
+
+**Response (dry_run=true):**
+```json
+{
+  "matched_triggers": [
+    {
+      "trigger_name": "Critical incident",
+      "would_create_session": true,
+      "session_config": {
+        "initial_message": "Incident: Test incident",
+        "tags": {
+          "source": "slack",
+          "severity": "critical"
+        }
+      }
+    }
+  ],
+  "dry_run": true
+}
+```
+
+**Response (dry_run=false):**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "trigger_name": "Critical incident",
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Example (dry run):**
+```bash
+curl -X POST https://api.example.com/webhooks/webhook-123/trigger \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": {
+      "event": "test_event",
+      "severity": "critical"
+    },
+    "dry_run": true
+  }'
+```
+
+**Example (actual trigger):**
+```bash
+curl -X POST https://api.example.com/webhooks/webhook-123/trigger \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": {
+      "event": "test_event",
+      "severity": "critical"
+    },
+    "dry_run": false
+  }'
+```
+
+**Note:** This endpoint does not perform signature verification since it requires API key authentication. Use it to test webhook triggers before configuring them in external services.
+
 ## Webhook Types
 
 ### GitHub Webhooks
