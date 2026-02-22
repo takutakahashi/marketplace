@@ -5,6 +5,7 @@
 - [Session Management Endpoints](#session-management-endpoints)
 - [Session Sharing Endpoints](#session-sharing-endpoints)
 - [Schedule Management Endpoints](#schedule-management-endpoints)
+- [Task Management Endpoints](#task-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
 - [Notification Endpoints](#notification-endpoints)
 - [Authentication Endpoints](#authentication-endpoints)
@@ -438,6 +439,255 @@ curl -X POST https://api.example.com/schedules/schedule-abc123/trigger \
 
 **Access Control:**
 - Users can only trigger their own schedules
+
+## Task Management Endpoints
+
+Tasks are units of work associated with a session. They can be used to track work items for both agents and users.
+
+### Task Object
+
+```json
+{
+  "id": "uuid",
+  "title": "string",
+  "description": "string",
+  "status": "todo | done",
+  "task_type": "agent | user",
+  "scope": "user | team",
+  "owner_id": "string",
+  "session_id": "string",
+  "group_id": "string",
+  "team_id": "string",
+  "links": [
+    {
+      "id": "uuid",
+      "url": "https://example.com",
+      "title": "optional title"
+    }
+  ],
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+### POST /tasks
+
+Create a new task.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "title": "Review PR #123",
+  "description": "Please review and approve the pull request",
+  "task_type": "user",
+  "scope": "user",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "group_id": "optional-group-id",
+  "team_id": "optional-team-id",
+  "links": [
+    {
+      "url": "https://github.com/owner/repo/pull/123",
+      "title": "PR #123"
+    }
+  ]
+}
+```
+
+**Fields:**
+- `title` (required): Task title
+- `task_type`: `agent` (default) or `user`
+- `scope`: `user` (default) or `team`
+- `session_id` (required): ID of the session to associate with
+- `description`: Optional description
+- `group_id`: Optional group ID for grouping tasks
+- `team_id`: Required when `scope` is `team`
+- `links`: Optional array of associated URLs
+
+**Response:**
+```json
+{
+  "id": "1b81fae1-a266-4538-a66c-2b0b0e274a81",
+  "title": "Review PR #123",
+  "description": "Please review and approve the pull request",
+  "status": "todo",
+  "task_type": "user",
+  "scope": "user",
+  "owner_id": "alice",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "links": [
+    {
+      "id": "6c7a10ec-feb5-4d2f-9b84-9df8f50f0b1d",
+      "url": "https://github.com/owner/repo/pull/123",
+      "title": "PR #123"
+    }
+  ],
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/tasks \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Review PR #123",
+    "task_type": "user",
+    "scope": "user",
+    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+    "links": [{"url": "https://github.com/owner/repo/pull/123", "title": "PR #123"}]
+  }'
+```
+
+**CLI equivalent:**
+```bash
+agentapi-proxy client task create \
+  --endpoint https://api.example.com \
+  --session-id SESSION_ID \
+  --title "Review PR #123" \
+  --task-type user \
+  --scope user \
+  --link "https://github.com/owner/repo/pull/123|PR #123"
+```
+
+### GET /tasks
+
+List tasks with optional filters.
+
+**Permissions Required:** `session:list`
+
+**Query Parameters:**
+- `status`: Filter by status (`todo`, `done`)
+- `task_type`: Filter by type (`agent`, `user`)
+- `scope`: Filter by scope (`user`, `team`)
+- `team_id`: Filter by team ID
+- `group_id`: Filter by group ID
+
+**Response:**
+```json
+{
+  "tasks": [
+    {
+      "id": "1b81fae1-a266-4538-a66c-2b0b0e274a81",
+      "title": "Review PR #123",
+      "status": "todo",
+      "task_type": "user",
+      "scope": "user",
+      "owner_id": "alice",
+      "session_id": "550e8400-e29b-41d4-a716-446655440000",
+      "links": [],
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Examples:**
+```bash
+# List all tasks
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/tasks
+
+# Filter pending tasks
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/tasks?status=todo"
+
+# Filter by type
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/tasks?task_type=user"
+```
+
+**CLI equivalent:**
+```bash
+agentapi-proxy client task list \
+  --endpoint https://api.example.com \
+  --session-id SESSION_ID \
+  --status todo \
+  --task-type user
+```
+
+**Access Control:**
+- Non-admin users can only see their own tasks
+- Admin users can see all tasks
+
+### GET /tasks/:taskId
+
+Get a specific task by ID.
+
+**Permissions Required:** `session:read`
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/tasks/1b81fae1-a266-4538-a66c-2b0b0e274a81
+```
+
+**CLI equivalent:**
+```bash
+agentapi-proxy client task get TASK_ID \
+  --endpoint https://api.example.com \
+  --session-id SESSION_ID
+```
+
+### PATCH /tasks/:taskId
+
+Update an existing task. Use the CLI for this operation.
+
+**Permissions Required:** `session:create`
+
+**Updatable Fields:**
+- `title`: New title
+- `description`: New description
+- `status`: New status (`todo` or `done`)
+- `group_id`: New group ID
+- `session_id`: New session ID to associate with
+
+**CLI (recommended):**
+```bash
+# Mark a task as done
+agentapi-proxy client task update TASK_ID \
+  --endpoint https://api.example.com \
+  --session-id SESSION_ID \
+  --status done
+
+# Update title and description
+agentapi-proxy client task update TASK_ID \
+  --endpoint https://api.example.com \
+  --session-id SESSION_ID \
+  --title "New title" \
+  --description "New description"
+```
+
+### DELETE /tasks/:taskId
+
+Delete a task by ID.
+
+**Permissions Required:** `session:delete`
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/tasks/1b81fae1-a266-4538-a66c-2b0b0e274a81 \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**CLI equivalent:**
+```bash
+agentapi-proxy client task delete TASK_ID \
+  --endpoint https://api.example.com \
+  --session-id SESSION_ID
+```
 
 ## User & Settings Endpoints
 
