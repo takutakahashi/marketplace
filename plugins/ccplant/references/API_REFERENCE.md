@@ -5,7 +5,10 @@
 - [Session Management Endpoints](#session-management-endpoints)
 - [Session Sharing Endpoints](#session-sharing-endpoints)
 - [Schedule Management Endpoints](#schedule-management-endpoints)
+- [Webhook Management Endpoints](#webhook-management-endpoints)
 - [Task Management Endpoints](#task-management-endpoints)
+- [Task Group Management Endpoints](#task-group-management-endpoints)
+- [Memory Management Endpoints](#memory-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
 - [Notification Endpoints](#notification-endpoints)
 - [Authentication Endpoints](#authentication-endpoints)
@@ -440,6 +443,337 @@ curl -X POST https://api.example.com/schedules/schedule-abc123/trigger \
 **Access Control:**
 - Users can only trigger their own schedules
 
+## Webhook Management Endpoints
+
+Webhooks enable automatic session creation when events occur in external systems (GitHub, Slack, Datadog, custom services).
+
+### POST /webhooks
+
+Create a new webhook for GitHub or custom events.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "Pull Request Reviewer",
+  "type": "github",
+  "scope": "user",
+  "github": {
+    "allowed_events": ["pull_request"],
+    "allowed_repositories": ["owner/repo"]
+  },
+  "triggers": [
+    {
+      "name": "PR opened",
+      "enabled": true,
+      "conditions": {
+        "github": {
+          "events": ["pull_request"],
+          "actions": ["opened", "synchronize"],
+          "base_branches": ["main"],
+          "draft": false
+        }
+      },
+      "session_config": {
+        "initial_message_template": "Review PR #{{.pull_request.number}}: {{.pull_request.title}}",
+        "tags": {
+          "repository": "{{.repository.full_name}}",
+          "pr": "{{.pull_request.number}}"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Fields:**
+- `name` (required): Webhook name
+- `type` (required): `github` or `custom`
+- `scope`: `user` (default) or `team`
+- `team_id`: Required when `scope` is `team`
+- `github`: GitHub-specific configuration (for type=github)
+  - `allowed_events`: List of allowed GitHub events
+  - `allowed_repositories`: Repository patterns (e.g., `myorg/*`)
+- `triggers`: Array of trigger configurations
+  - `name`: Trigger name
+  - `enabled`: Whether trigger is active
+  - `conditions`: Conditions for matching events
+  - `session_config`: Configuration for created sessions
+
+**Response:**
+```json
+{
+  "id": "webhook-123",
+  "name": "Pull Request Reviewer",
+  "type": "github",
+  "status": "active",
+  "webhook_url": "https://api.example.com/hooks/github/webhook-123",
+  "secret": "generated-secret-key",
+  "created_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/webhooks \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "PR Review Bot",
+    "type": "github",
+    "github": {
+      "allowed_events": ["pull_request"],
+      "allowed_repositories": ["myorg/*"]
+    },
+    "triggers": [{
+      "name": "Review PRs",
+      "conditions": {
+        "github": {
+          "events": ["pull_request"],
+          "actions": ["opened"]
+        }
+      },
+      "session_config": {
+        "initial_message_template": "Review PR #{{.pull_request.number}}"
+      }
+    }]
+  }'
+```
+
+### GET /webhooks
+
+List webhooks accessible to the authenticated user.
+
+**Permissions Required:** `session:list`
+
+**Query Parameters:**
+- `type`: Filter by webhook type (`github`, `custom`)
+- `status`: Filter by status (`active`, `paused`, `disabled`)
+- `scope`: Filter by resource scope (`user`, `team`)
+- `team_id`: Filter by team ID
+
+**Response:**
+```json
+{
+  "webhooks": [
+    {
+      "id": "webhook-123",
+      "name": "PR Review Bot",
+      "type": "github",
+      "status": "active",
+      "webhook_url": "https://api.example.com/hooks/github/webhook-123",
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-02T10:00:00Z"
+    }
+  ]
+}
+```
+
+**Example:**
+```bash
+# List all webhooks
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/webhooks
+
+# Filter by type
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/webhooks?type=github"
+```
+
+**Access Control:**
+- Non-admin users can see their own webhooks and team-scoped webhooks they have access to
+- Admin users can see all webhooks
+
+### GET /webhooks/:id
+
+Get a specific webhook by ID.
+
+**Permissions Required:** `session:read`
+
+**Response:**
+```json
+{
+  "id": "webhook-123",
+  "name": "PR Review Bot",
+  "type": "github",
+  "status": "active",
+  "scope": "user",
+  "owner_id": "alice",
+  "webhook_url": "https://api.example.com/hooks/github/webhook-123",
+  "github": {
+    "allowed_events": ["pull_request"],
+    "allowed_repositories": ["myorg/*"]
+  },
+  "triggers": [...],
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-02T10:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/webhooks/webhook-123
+```
+
+**Access Control:**
+- Users can only access their own webhooks
+
+### PUT /webhooks/:id
+
+Update an existing webhook.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "Updated Webhook Name",
+  "status": "paused",
+  "triggers": [...]
+}
+```
+
+**Response:**
+```json
+{
+  "id": "webhook-123",
+  "name": "Updated Webhook Name",
+  "status": "paused",
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/webhooks/webhook-123 \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Name", "status": "paused"}'
+```
+
+**Access Control:**
+- Users can only update their own webhooks
+
+### DELETE /webhooks/:id
+
+Delete a webhook by ID.
+
+**Permissions Required:** `session:delete`
+
+**Response:**
+```json
+{
+  "message": "Webhook deleted successfully",
+  "id": "webhook-123"
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/webhooks/webhook-123 \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Access Control:**
+- Users can only delete their own webhooks
+
+### POST /webhooks/:id/regenerate-secret
+
+Generate a new secret for webhook signature verification.
+
+**Permissions Required:** `session:create`
+
+**Response:**
+```json
+{
+  "id": "webhook-123",
+  "secret": "new-generated-secret-key"
+}
+```
+
+**Note:** The new secret is shown only once. Update your webhook configuration in the external service immediately.
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/webhooks/webhook-123/regenerate-secret \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Access Control:**
+- Users can only regenerate secrets for their own webhooks
+
+### POST /webhooks/:id/trigger
+
+Manually trigger a webhook with a test payload.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "payload": {
+    "event": "test_event",
+    "data": "test_data"
+  },
+  "dry_run": true
+}
+```
+
+**Fields:**
+- `payload` (required): Test payload to evaluate
+- `dry_run`: If true, only evaluates triggers without creating a session (default: false)
+
+**Response:**
+```json
+{
+  "matched": true,
+  "trigger_id": "trigger-456",
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "message": "Trigger matched and session created"
+}
+```
+
+**Example:**
+```bash
+# Dry run test
+curl -X POST https://api.example.com/webhooks/webhook-123/trigger \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"test": "data"}, "dry_run": true}'
+
+# Actual trigger
+curl -X POST https://api.example.com/webhooks/webhook-123/trigger \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"payload": {"test": "data"}, "dry_run": false}'
+```
+
+**Access Control:**
+- Users can only trigger their own webhooks
+
+### POST /hooks/github/:id
+
+Receive webhook payloads from GitHub (webhook endpoint).
+
+**Security:** No authentication required (uses webhook signature verification)
+
+**Note:** This is the webhook URL that should be configured in GitHub. The ID is the webhook ID returned when creating the webhook.
+
+**Example GitHub webhook configuration:**
+- Payload URL: `https://api.example.com/hooks/github/webhook-123`
+- Content type: `application/json`
+- Secret: Use the secret provided when creating the webhook
+
+### POST /hooks/custom/:id
+
+Receive webhook payloads from custom services (Slack, Datadog, PagerDuty, etc.).
+
+**Security:** No authentication required (uses webhook signature verification)
+
+**Note:** This is the webhook URL that should be configured in external services. The ID is the webhook ID returned when creating the webhook.
+
 ## Task Management Endpoints
 
 Tasks are units of work associated with a session. They can be used to track work items for both agents and users.
@@ -688,6 +1022,369 @@ agentapi-proxy client task delete TASK_ID \
   --endpoint https://api.example.com \
   --session-id SESSION_ID
 ```
+
+## Task Group Management Endpoints
+
+Task groups provide a way to organize and manage related tasks together.
+
+### POST /task-groups
+
+Create a new task group.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "Sprint 23 Tasks",
+  "description": "Tasks for the current sprint",
+  "scope": "user",
+  "team_id": "optional-team-id"
+}
+```
+
+**Fields:**
+- `name` (required): Group name
+- `description`: Optional description
+- `scope`: `user` (default) or `team`
+- `team_id`: Required when `scope` is `team`
+
+**Response:**
+```json
+{
+  "id": "group-abc123",
+  "name": "Sprint 23 Tasks",
+  "description": "Tasks for the current sprint",
+  "scope": "user",
+  "owner_id": "alice",
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/task-groups \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sprint 23 Tasks",
+    "description": "Tasks for the current sprint",
+    "scope": "user"
+  }'
+```
+
+### GET /task-groups
+
+List task groups accessible to the authenticated user.
+
+**Permissions Required:** `session:list`
+
+**Query Parameters:**
+- `scope`: Filter by scope (`user`, `team`)
+- `team_id`: Filter by team ID (required when scope=team)
+
+**Response:**
+```json
+{
+  "task_groups": [
+    {
+      "id": "group-abc123",
+      "name": "Sprint 23 Tasks",
+      "description": "Tasks for the current sprint",
+      "scope": "user",
+      "owner_id": "alice",
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Examples:**
+```bash
+# List all task groups
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/task-groups
+
+# Filter by scope
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/task-groups?scope=user"
+```
+
+**Access Control:**
+- Non-admin users can only see their own task groups
+- Admin users can see all task groups
+
+### GET /task-groups/:groupId
+
+Get a specific task group by ID.
+
+**Permissions Required:** `session:read`
+
+**Response:**
+```json
+{
+  "id": "group-abc123",
+  "name": "Sprint 23 Tasks",
+  "description": "Tasks for the current sprint",
+  "scope": "user",
+  "owner_id": "alice",
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/task-groups/group-abc123
+```
+
+### PUT /task-groups/:groupId
+
+Update an existing task group.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "Updated Group Name",
+  "description": "Updated description"
+}
+```
+
+**Note:** Omitted fields are not changed.
+
+**Response:**
+```json
+{
+  "id": "group-abc123",
+  "name": "Updated Group Name",
+  "description": "Updated description",
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/task-groups/group-abc123 \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Group Name"}'
+```
+
+### DELETE /task-groups/:groupId
+
+Delete a task group by ID.
+
+**Permissions Required:** `session:delete`
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/task-groups/group-abc123 \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+## Memory Management Endpoints
+
+Memory entries allow storing and retrieving contextual information for agents and users. Supports user-scoped (private) and team-scoped (shared) memories.
+
+### POST /memories
+
+Create a new memory entry.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "title": "Project conventions",
+  "content": "Always use TypeScript for new files. Follow ESLint rules.",
+  "scope": "user",
+  "team_id": "optional-team-id"
+}
+```
+
+**Fields:**
+- `title` (required): Memory title
+- `content` (required): Memory content
+- `scope`: `user` (default) or `team`
+- `team_id`: Required when `scope` is `team`
+
+**Response:**
+```json
+{
+  "id": "mem-abc123",
+  "title": "Project conventions",
+  "content": "Always use TypeScript for new files. Follow ESLint rules.",
+  "scope": "user",
+  "owner_id": "alice",
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/memories \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Project conventions",
+    "content": "Always use TypeScript for new files.",
+    "scope": "user"
+  }'
+```
+
+### GET /memories
+
+List memory entries accessible to the authenticated user.
+
+**Permissions Required:** `session:list`
+
+**Query Parameters:**
+- `scope`: Filter by scope (`user`, `team`)
+- `team_id`: Filter by team ID (required when scope=team)
+- `q`: Full-text search query (searches title and content, case-insensitive)
+
+**Response:**
+```json
+{
+  "memories": [
+    {
+      "id": "mem-abc123",
+      "title": "Project conventions",
+      "content": "Always use TypeScript for new files.",
+      "scope": "user",
+      "owner_id": "alice",
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+**Examples:**
+```bash
+# List all memories
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/memories
+
+# Search memories
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/memories?q=typescript"
+
+# Filter by team
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/memories?scope=team&team_id=myorg/team-slug"
+```
+
+**Access Control:**
+- User-scoped: Only the owner can see their memories
+- Team-scoped: All team members can see the memories
+- Admin privilege does NOT bypass these restrictions
+
+### GET /memories/:memoryId
+
+Get a specific memory entry by ID.
+
+**Permissions Required:** `session:read`
+
+**Response:**
+```json
+{
+  "id": "mem-abc123",
+  "title": "Project conventions",
+  "content": "Always use TypeScript for new files.",
+  "scope": "user",
+  "owner_id": "alice",
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/memories/mem-abc123
+```
+
+**Access Control:**
+- User-scoped: Only the owner can access
+- Team-scoped: Only team members can access
+- Admin privilege does NOT bypass these restrictions
+
+### PUT /memories/:memoryId
+
+Update an existing memory entry.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "title": "Updated conventions",
+  "content": "Updated content"
+}
+```
+
+**Note:** Omitted fields are not changed.
+
+**Response:**
+```json
+{
+  "id": "mem-abc123",
+  "title": "Updated conventions",
+  "content": "Updated content",
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/memories/mem-abc123 \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Updated conventions"}'
+```
+
+**Access Control:**
+- User-scoped: Only the owner can update
+- Team-scoped: Only team members can update
+
+### DELETE /memories/:memoryId
+
+Delete a memory entry by ID.
+
+**Permissions Required:** `session:delete`
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/memories/mem-abc123 \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Access Control:**
+- User-scoped: Only the owner can delete
+- Team-scoped: Only team members can delete
 
 ## User & Settings Endpoints
 
