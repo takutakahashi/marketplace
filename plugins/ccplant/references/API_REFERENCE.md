@@ -9,6 +9,7 @@
 - [Task Management Endpoints](#task-management-endpoints)
 - [Task Group Management Endpoints](#task-group-management-endpoints)
 - [Memory Management Endpoints](#memory-management-endpoints)
+- [SlackBot Management Endpoints](#slackbot-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
 - [Notification Endpoints](#notification-endpoints)
 - [Authentication Endpoints](#authentication-endpoints)
@@ -1385,6 +1386,225 @@ curl -X DELETE https://api.example.com/memories/mem-abc123 \
 **Access Control:**
 - User-scoped: Only the owner can delete
 - Team-scoped: Only team members can delete
+
+## SlackBot Management Endpoints
+
+SlackBot configurations enable automated session creation in response to Slack events. Each SlackBot corresponds to a Slack App installation and receives events via Socket Mode (WebSocket).
+
+### POST /slackbots
+
+Create a new SlackBot configuration.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "My Slack Bot",
+  "scope": "user",
+  "team_id": "optional-team-id",
+  "bot_token_secret_name": "my-slack-bot-token",
+  "bot_token_secret_key": "bot-token",
+  "allowed_channel_names": ["dev", "backend"],
+  "session_config": {
+    "initial_message_template": "New Slack message from {{.event.user}} in <#{{.event.channel}}>: {{.event.text}}",
+    "tags": {
+      "channel": "{{.event.channel}}"
+    }
+  }
+}
+```
+
+**Fields:**
+- `name` (required): SlackBot name
+- `scope`: `user` (default) or `team`
+- `team_id`: Required when `scope` is `team`
+- `bot_token_secret_name`: Kubernetes secret name containing the bot token
+- `bot_token_secret_key`: Key within the secret containing the bot token
+- `allowed_channel_names`: Optional list of allowed channel names (without #)
+- `session_config`: Configuration for created sessions
+  - `initial_message_template`: Go template for initial message
+  - `tags`: Tags to apply to created sessions
+
+**Response:**
+```json
+{
+  "id": "slackbot-abc123",
+  "name": "My Slack Bot",
+  "status": "active",
+  "scope": "user",
+  "owner_id": "alice",
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/slackbots \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Team Bot",
+    "scope": "team",
+    "team_id": "myorg/backend",
+    "bot_token_secret_name": "my-slack-bot-token",
+    "bot_token_secret_key": "bot-token",
+    "allowed_channel_names": ["dev", "backend"],
+    "session_config": {
+      "initial_message_template": "{{.event.text}}",
+      "tags": {
+        "channel": "{{.event.channel}}"
+      }
+    }
+  }'
+```
+
+### GET /slackbots
+
+List SlackBots accessible to the authenticated user.
+
+**Permissions Required:** `session:list`
+
+**Query Parameters:**
+- `status`: Filter by SlackBot status (e.g., `active`, `inactive`)
+- `scope`: Filter by resource scope (`user`, `team`)
+- `team_id`: Filter by team ID
+
+**Response:**
+```json
+{
+  "slackbots": [
+    {
+      "id": "slackbot-abc123",
+      "name": "My Slack Bot",
+      "status": "active",
+      "scope": "user",
+      "owner_id": "alice",
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Examples:**
+```bash
+# List all SlackBots
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/slackbots
+
+# Filter by scope
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/slackbots?scope=team"
+
+# Filter by team
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/slackbots?team_id=myorg/backend"
+```
+
+**Access Control:**
+- Non-admin users can see their own SlackBots and team-scoped SlackBots they have access to
+- Admin users can see all SlackBots
+
+### GET /slackbots/:id
+
+Get a specific SlackBot by ID.
+
+**Permissions Required:** `session:read`
+
+**Response:**
+```json
+{
+  "id": "slackbot-abc123",
+  "name": "My Slack Bot",
+  "status": "active",
+  "scope": "user",
+  "owner_id": "alice",
+  "bot_token_secret_name": "my-slack-bot-token",
+  "bot_token_secret_key": "bot-token",
+  "allowed_channel_names": ["dev", "backend"],
+  "session_config": {
+    "initial_message_template": "{{.event.text}}",
+    "tags": {
+      "channel": "{{.event.channel}}"
+    }
+  },
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/slackbots/slackbot-abc123
+```
+
+**Access Control:**
+- Users can only access their own SlackBots and team-scoped SlackBots they have access to
+
+### PUT /slackbots/:id
+
+Update an existing SlackBot.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "Updated Bot Name",
+  "status": "inactive",
+  "allowed_channel_names": ["dev", "backend", "general"]
+}
+```
+
+**Note:** Omitted fields are not changed.
+
+**Response:**
+```json
+{
+  "id": "slackbot-abc123",
+  "name": "Updated Bot Name",
+  "status": "inactive",
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/slackbots/slackbot-abc123 \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Bot Name"}'
+```
+
+**Access Control:**
+- Users can only update their own SlackBots
+- Team members can update team-scoped SlackBots
+
+### DELETE /slackbots/:id
+
+Delete a SlackBot by ID.
+
+**Permissions Required:** `session:delete`
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/slackbots/slackbot-abc123 \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Access Control:**
+- Users can only delete their own SlackBots
+- Team members can delete team-scoped SlackBots
 
 ## User & Settings Endpoints
 
