@@ -4,10 +4,13 @@ description: |
   Interact with agentapi-proxy API using API Key authentication for session management.
   Use when you need to: (1) Create new agentapi sessions, (2) Search and list existing sessions,
   (3) Delete sessions, (4) Route requests to specific session instances, (5) Manage session sharing,
-  (6) Access user settings and notifications, (7) Create and manage tasks associated with sessions.
-  Supports multiple authentication methods including static API keys (X-API-Key header) and
-  Authorization Bearer tokens.
-  Note: For schedule management, use the schedule-management skill instead.
+  (6) Access user settings and notifications, (7) Create and manage tasks associated with sessions,
+  (8) Manage task groups for organizing tasks, (9) Create and manage memory entries for storing
+  contextual information. Supports multiple authentication methods including static API keys
+  (X-API-Key header) and Authorization Bearer tokens.
+  Note: For schedule management, use the schedule-management skill instead. For webhook management,
+  use the webhook-management skill instead. For SlackBot management, use the slackbot-management
+  skill instead.
 ---
 
 # agentapi-proxy API
@@ -166,6 +169,92 @@ agentapi-proxy client task delete TASK_ID \
 ```
 
 See [TASK_REFERENCE.md](references/TASK_REFERENCE.md) for complete task API documentation.
+
+### Managing Task Groups
+
+Task groups provide a way to organize and manage related tasks together.
+
+**Create a task group:**
+```bash
+curl -X POST https://api.example.com/task-groups \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sprint 23 Tasks",
+    "description": "Tasks for the current sprint",
+    "scope": "user"
+  }'
+```
+
+**List task groups:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/task-groups
+```
+
+**Update a task group:**
+```bash
+curl -X PUT https://api.example.com/task-groups/GROUP_ID \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Group Name"
+  }'
+```
+
+**Delete a task group:**
+```bash
+curl -X DELETE https://api.example.com/task-groups/GROUP_ID \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+### Managing Memory Entries
+
+Memory entries allow storing and retrieving contextual information for agents and users. Supports user-scoped (private) and team-scoped (shared) memories.
+
+**Create a memory entry:**
+```bash
+curl -X POST https://api.example.com/memories \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Project conventions",
+    "content": "Always use TypeScript for new files. Follow ESLint rules.",
+    "scope": "user"
+  }'
+```
+
+**List memory entries:**
+```bash
+# List all memories
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/memories
+
+# Search memories
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/memories?q=typescript"
+
+# Filter by team
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/memories?scope=team&team_id=myorg/team-slug"
+```
+
+**Update a memory entry:**
+```bash
+curl -X PUT https://api.example.com/memories/MEMORY_ID \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Updated conventions",
+    "content": "Updated content"
+  }'
+```
+
+**Delete a memory entry:**
+```bash
+curl -X DELETE https://api.example.com/memories/MEMORY_ID \
+  -H "X-API-Key: YOUR_API_KEY"
+```
 
 ## API Reference
 
