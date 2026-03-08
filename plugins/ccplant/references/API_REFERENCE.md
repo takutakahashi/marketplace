@@ -128,25 +128,40 @@ curl -X DELETE https://api.example.com/sessions/550e8400-e29b-41d4-a716-44665544
   -H "X-API-Key: ap_user_alice_987654321fedcba"
 ```
 
-### ANY /:sessionId/*
+### GET/POST /:sessionId/:path
 
-Route requests to the agentapi instance for the specified session.
+Proxy requests to the agentapi instance for the specified session.
 
 **Permissions Required:** `session:access`
 
-**Example:**
+**Parameters:**
+- `sessionId` (path): Session ID
+- `path` (path): Path to forward to agentapi
+
+**Description:**
+- All requests to `/{sessionId}/*` are proxied to the corresponding agentapi server instance
+- Supports GET and POST methods
+- Users can only access their own sessions
+
+**Response Codes:**
+- `200`: Response from agentapi server
+- `403`: Forbidden - can only access own sessions
+- `404`: Session not found
+- `502`: Bad Gateway - agentapi server unavailable
+
+**Examples:**
 ```bash
-# Send a message to the agent
+# Send a message to the agent (POST)
 curl -X POST https://api.example.com/550e8400-e29b-41d4-a716-446655440000/message \
   -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"content": "Hello", "type": "user"}'
 
-# Get session status
+# Get session status (GET)
 curl -H "X-API-Key: YOUR_API_KEY" \
   https://api.example.com/550e8400-e29b-41d4-a716-446655440000/status
 
-# Get conversation history
+# Get conversation history (GET)
 curl -H "X-API-Key: YOUR_API_KEY" \
   https://api.example.com/550e8400-e29b-41d4-a716-446655440000/messages
 ```
@@ -196,9 +211,27 @@ curl -X DELETE https://api.example.com/sessions/550e8400-e29b-41d4-a716-44665544
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
-### ANY /s/:shareToken/*
+### GET/HEAD /s/:shareToken/:path
 
 Access a shared session in read-only mode (no authentication required).
+
+**Security:** No authentication required
+
+**Parameters:**
+- `shareToken` (path): Share token (32-character hex string)
+- `path` (path): Path to forward to agentapi
+
+**Description:**
+- All GET/HEAD requests to `/s/{shareToken}/*` are proxied to the corresponding agentapi server instance in read-only mode
+- Only GET and HEAD methods are allowed for shared sessions
+- POST/PUT/DELETE methods are not allowed and will return 403 Forbidden
+
+**Response Codes:**
+- `200`: Response from agentapi server
+- `403`: Shared sessions are read-only (POST/PUT/DELETE not allowed)
+- `404`: Invalid share token or session not found
+- `410`: Share link has expired
+- `502`: Bad Gateway - agentapi server unavailable
 
 **Example:**
 ```bash
@@ -774,6 +807,46 @@ Receive webhook payloads from custom services (Slack, Datadog, PagerDuty, etc.).
 **Security:** No authentication required (uses webhook signature verification)
 
 **Note:** This is the webhook URL that should be configured in external services. The ID is the webhook ID returned when creating the webhook.
+
+### POST /hooks/slack/:id
+
+Receive Slack event payloads via the Slack Events API.
+
+**Security:** No authentication required (uses Slack signature verification)
+
+**Parameters:**
+- `id` (path): SlackBot ID (UUID) or 'default' for server-configured default bot
+
+**Request Body:**
+```json
+{
+  "type": "event_callback",
+  "event": {
+    "type": "message",
+    "channel": "C01234567",
+    "user": "U01234567",
+    "text": "Hello, world!",
+    "ts": "1628000000.000000",
+    "thread_ts": "1628000000.000000"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "challenge": "challenge-token-for-url-verification"
+}
+```
+
+**Description:**
+- Receives Slack Events API payloads
+- Verifies Slack v0 HMAC-SHA256 signature
+- Handles URL verification challenges
+- Creates or reuses a session per Slack thread
+- Triggers the claude-posts sidecar for Slack thread replies
+
+**Note:** This is the webhook URL that should be configured in Slack Events API. The ID is either a registered SlackBot UUID or 'default' to use the server startup configuration.
 
 ## Task Management Endpoints
 
