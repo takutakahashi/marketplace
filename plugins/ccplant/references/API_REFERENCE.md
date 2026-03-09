@@ -1042,7 +1042,7 @@ agentapi-proxy client task get TASK_ID \
   --session-id SESSION_ID
 ```
 
-### PATCH /tasks/:taskId
+### PUT /tasks/:taskId
 
 Update an existing task. Use the CLI for this operation.
 
