@@ -246,6 +246,15 @@ Create a new schedule for delayed or recurring session execution.
 
 **Permissions Required:** `session:create`
 
+**Fields:**
+- `name` (required): Schedule name
+- `scheduled_at`: ISO 8601 timestamp for one-time execution (either this or `cron_expr` must be set)
+- `cron_expr`: Cron expression for recurring execution (either this or `scheduled_at` must be set)
+- `timezone`: Timezone for the schedule (default: `Asia/Tokyo`)
+- `scope`: `user` (default) or `team`
+- `team_id`: Required when `scope` is `team`
+- `session_config`: Configuration for created sessions
+
 **Request Body:**
 ```json
 {
@@ -526,14 +535,19 @@ Create a new webhook for GitHub or custom events.
 - `type` (required): `github` or `custom`
 - `scope`: `user` (default) or `team`
 - `team_id`: Required when `scope` is `team`
+- `secret`: Custom secret for HMAC signature verification (optional, auto-generated if not provided)
 - `github`: GitHub-specific configuration (for type=github)
   - `allowed_events`: List of allowed GitHub events
   - `allowed_repositories`: Repository patterns (e.g., `myorg/*`)
-- `triggers`: Array of trigger configurations
+- `triggers` (required): Array of trigger configurations
   - `name`: Trigger name
   - `enabled`: Whether trigger is active
   - `conditions`: Conditions for matching events
   - `session_config`: Configuration for created sessions
+- `signature_header`: HTTP header containing the signature (default: `X-Signature`)
+- `signature_type`: Signature verification type - `hmac` (default) or `static`
+- `signature_prefix`: Prefix to strip from signature header before verification (auto-detected if empty)
+- `max_sessions`: Maximum concurrent sessions for this webhook (default: 10, min: 1, max: 100)
 
 **Response:**
 ```json
@@ -905,9 +919,9 @@ Create a new task.
 
 **Fields:**
 - `title` (required): Task title
-- `task_type`: `agent` (default) or `user`
-- `scope`: `user` (default) or `team`
-- `session_id` (required): ID of the session to associate with
+- `task_type` (required): `agent` (default) or `user`
+- `scope` (required): `user` (default) or `team`
+- `session_id`: ID of the session to associate with (optional)
 - `description`: Optional description
 - `group_id`: Optional group ID for grouping tasks
 - `team_id`: Required when `scope` is `team`
@@ -1052,8 +1066,9 @@ Update an existing task. Use the CLI for this operation.
 - `title`: New title
 - `description`: New description
 - `status`: New status (`todo` or `done`)
-- `group_id`: New group ID
+- `group_id`: New group ID (set to empty string to remove from group)
 - `session_id`: New session ID to associate with
+- `links`: Replaces all existing links when present
 
 **CLI (recommended):**
 ```bash
