@@ -27,48 +27,52 @@ Schedules enable automatic session creation at specific times or on recurring in
 
 #### One-Time Delayed Execution
 
+First, create a JSON file with your schedule configuration:
+
 ```bash
-curl -X POST https://api.example.com/schedules \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Code Review Session",
-    "scheduled_at": "2025-01-15T14:00:00Z",
-    "session_config": {
-      "tags": {
-        "repository": "org/repo",
-        "task": "code-review"
-      },
-      "params": {
-        "message": "Review all open PRs"
-      }
+cat > schedule.json <<'EOF'
+{
+  "name": "Code Review Session",
+  "scheduled_at": "2025-01-15T14:00:00Z",
+  "session_config": {
+    "tags": {
+      "repository": "org/repo",
+      "task": "code-review"
+    },
+    "params": {
+      "message": "Review all open PRs"
     }
-  }'
+  }
+}
+EOF
+
+agentapi-proxy client schedule create -f schedule.json
 ```
 
 #### Recurring Execution (Cron)
 
 ```bash
-curl -X POST https://api.example.com/schedules \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Daily Standup Bot",
-    "cron_expr": "0 9 * * 1-5",
-    "timezone": "America/New_York",
-    "session_config": {
-      "tags": {
-        "repository": "org/standup-bot",
-        "type": "standup"
-      },
-      "params": {
-        "message": "Generate daily standup report"
-      },
-      "environment": {
-        "SLACK_WEBHOOK": "https://hooks.slack.com/..."
-      }
+cat > schedule-cron.json <<'EOF'
+{
+  "name": "Daily Standup Bot",
+  "cron_expr": "0 9 * * 1-5",
+  "timezone": "America/New_York",
+  "session_config": {
+    "tags": {
+      "repository": "org/standup-bot",
+      "type": "standup"
+    },
+    "params": {
+      "message": "Generate daily standup report"
+    },
+    "environment": {
+      "SLACK_WEBHOOK": "https://hooks.slack.com/..."
     }
-  }'
+  }
+}
+EOF
+
+agentapi-proxy client schedule create -f schedule-cron.json
 ```
 
 **Timezone Support:**
@@ -98,55 +102,48 @@ curl -X POST https://api.example.com/schedules \
 
 ```bash
 # List all schedules
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/schedules
+agentapi-proxy client schedule list
 
-# Filter by status
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/schedules?status=active"
-
-# Filter by scope
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/schedules?scope=user"
-
-# Filter by team
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/schedules?team_id=org/my-team"
+# Note: Filtering by status, scope, or team is done by the API automatically
+# based on your authentication and permissions
 ```
 
 ### Getting a Specific Schedule
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/schedules/schedule-abc123
+agentapi-proxy client schedule get SCHEDULE_ID
 ```
 
 ### Updating a Schedule
 
 ```bash
-curl -X PUT https://api.example.com/schedules/schedule-abc123 \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Updated Schedule Name",
-    "status": "paused",
-    "cron_expr": "0 10 * * 1-5"
-  }'
+# Update specific fields using apply (patch)
+echo '{"status":"paused"}' | agentapi-proxy client schedule apply SCHEDULE_ID
+
+# Or update multiple fields
+cat > update.json <<'EOF'
+{
+  "name": "Updated Schedule Name",
+  "status": "paused",
+  "cron_expr": "0 10 * * 1-5"
+}
+EOF
+
+cat update.json | agentapi-proxy client schedule apply SCHEDULE_ID
 ```
 
 ### Deleting a Schedule
 
 ```bash
-curl -X DELETE https://api.example.com/schedules/schedule-abc123 \
-  -H "X-API-Key: YOUR_API_KEY"
+agentapi-proxy client schedule delete SCHEDULE_ID
 ```
 
 ### Manually Triggering a Schedule
 
-Immediately execute a schedule without waiting for the next scheduled time:
+**Note:** The `trigger` command is not yet implemented in the CLI client. Use the API directly if you need to manually trigger a schedule:
 
 ```bash
-curl -X POST https://api.example.com/schedules/schedule-abc123/trigger \
+curl -X POST https://api.example.com/schedules/SCHEDULE_ID/trigger \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 

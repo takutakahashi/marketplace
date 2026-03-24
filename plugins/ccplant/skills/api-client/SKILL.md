@@ -187,6 +187,25 @@ See [TASK_REFERENCE.md](references/TASK_REFERENCE.md) for complete task API docu
 
 Task groups provide a way to organize and manage related tasks together.
 
+**Preferred Method: Use MCP Tools**
+
+When using Claude Code or environments with MCP support, use the built-in MCP tools:
+
+```
+# Create a task group
+Use the mcp__ccplant-dev__create_task_group tool
+
+# List task groups
+Use the mcp__ccplant-dev__list_task_groups tool
+
+# Delete a task group
+Use the mcp__ccplant-dev__delete_task_group tool
+```
+
+**Alternative: Direct API Calls**
+
+If MCP tools are not available, use curl:
+
 **Create a task group:**
 ```bash
 curl -X POST https://api.example.com/task-groups \
@@ -224,6 +243,31 @@ curl -X DELETE https://api.example.com/task-groups/GROUP_ID \
 ### Managing Memory Entries
 
 Memory entries allow storing and retrieving contextual information for agents and users. Supports user-scoped (private) and team-scoped (shared) memories.
+
+**Preferred Method: Use MCP Tools**
+
+When using Claude Code or environments with MCP support, use the built-in MCP tools:
+
+```
+# Create a memory entry
+Use the mcp__ccplant-dev__create_memory tool
+
+# List memory entries
+Use the mcp__ccplant-dev__list_memories tool
+
+# Get a specific memory
+Use the mcp__ccplant-dev__get_memory tool
+
+# Update a memory entry
+Use the mcp__ccplant-dev__update_memory tool
+
+# Delete a memory entry
+Use the mcp__ccplant-dev__delete_memory tool
+```
+
+**Alternative: Direct API Calls**
+
+If MCP tools are not available, use curl:
 
 **Create a memory entry:**
 ```bash

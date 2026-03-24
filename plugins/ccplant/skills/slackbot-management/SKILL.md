@@ -30,41 +30,43 @@ SlackBots use Socket Mode (WebSocket) to receive events from Slack, eliminating 
 #### Basic SlackBot
 
 ```bash
-curl -X POST https://api.example.com/slackbots \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My Slack Bot",
-    "session_config": {
-      "initial_message_template": "New Slack message from {{.event.user}} in <#{{.event.channel}}>: {{.event.text}}"
-    }
-  }'
+cat > slackbot-basic.json <<'EOF'
+{
+  "name": "My Slack Bot",
+  "session_config": {
+    "initial_message_template": "New Slack message from {{.event.user}} in <#{{.event.channel}}>: {{.event.text}}"
+  }
+}
+EOF
+
+agentapi-proxy client slackbot create -f slackbot-basic.json
 ```
 
 #### Team-Scoped SlackBot with Channel and Event Filters
 
 ```bash
-curl -X POST https://api.example.com/slackbots \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Team Bot",
-    "scope": "team",
-    "team_id": "myorg/backend",
-    "bot_token_secret_name": "my-slack-bot-token",
-    "bot_token_secret_key": "bot-token",
-    "allowed_channel_names": ["dev", "backend"],
-    "allowed_event_types": ["message", "app_mention"],
-    "notify_on_session_created": true,
-    "allow_bot_messages": false,
-    "max_sessions": 10,
-    "session_config": {
-      "initial_message_template": "{{.event.text}}",
-      "tags": {
-        "channel": "{{.event.channel}}"
-      }
+cat > slackbot-team.json <<'EOF'
+{
+  "name": "Team Bot",
+  "scope": "team",
+  "team_id": "myorg/backend",
+  "bot_token_secret_name": "my-slack-bot-token",
+  "bot_token_secret_key": "bot-token",
+  "allowed_channel_names": ["dev", "backend"],
+  "allowed_event_types": ["message", "app_mention"],
+  "notify_on_session_created": true,
+  "allow_bot_messages": false,
+  "max_sessions": 10,
+  "session_config": {
+    "initial_message_template": "{{.event.text}}",
+    "tags": {
+      "channel": "{{.event.channel}}"
     }
-  }'
+  }
+}
+EOF
+
+agentapi-proxy client slackbot create -f slackbot-team.json
 ```
 
 **Fields:**
@@ -107,40 +109,34 @@ curl -X POST https://api.example.com/slackbots \
 
 ```bash
 # List all SlackBots
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/slackbots
+agentapi-proxy client slackbot list
 
-# Filter by status
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/slackbots?status=active"
-
-# Filter by scope
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/slackbots?scope=user"
-
-# Filter by team
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/slackbots?team_id=org/my-team"
+# Note: Filtering by status, scope, or team is done by the API automatically
+# based on your authentication and permissions
 ```
 
 ### Getting a Specific SlackBot
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/slackbots/slackbot-abc123
+agentapi-proxy client slackbot get SLACKBOT_ID
 ```
 
 ### Updating a SlackBot
 
 ```bash
-curl -X PUT https://api.example.com/slackbots/slackbot-abc123 \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Updated Bot Name",
-    "status": "inactive",
-    "allowed_channel_names": ["dev", "backend", "general"]
-  }'
+# Update specific fields using apply (patch)
+echo '{"status":"inactive"}' | agentapi-proxy client slackbot apply SLACKBOT_ID
+
+# Or update multiple fields
+cat > update.json <<'EOF'
+{
+  "name": "Updated Bot Name",
+  "status": "inactive",
+  "allowed_channel_names": ["dev", "backend", "general"]
+}
+EOF
+
+cat update.json | agentapi-proxy client slackbot apply SLACKBOT_ID
 ```
 
 **Note:** Omitted fields are not changed.
@@ -148,8 +144,7 @@ curl -X PUT https://api.example.com/slackbots/slackbot-abc123 \
 ### Deleting a SlackBot
 
 ```bash
-curl -X DELETE https://api.example.com/slackbots/slackbot-abc123 \
-  -H "X-API-Key: YOUR_API_KEY"
+agentapi-proxy client slackbot delete SLACKBOT_ID
 ```
 
 ## Use Cases
@@ -255,22 +250,38 @@ kubectl create secret generic my-slack-bot-token \
 
 5. Reference the secret in your SlackBot configuration:
 
-```json
+```bash
+cat > slackbot-with-secret.json <<'EOF'
 {
+  "name": "My Slack Bot",
   "bot_token_secret_name": "my-slack-bot-token",
-  "bot_token_secret_key": "bot-token"
+  "bot_token_secret_key": "bot-token",
+  "session_config": {
+    "initial_message_template": "{{.event.text}}"
+  }
 }
+EOF
+
+agentapi-proxy client slackbot create -f slackbot-with-secret.json
 ```
 
 ### Method 2: Direct Token Provision
 
 Provide tokens directly in the request (they will be stored in a Kubernetes secret automatically):
 
-```json
+```bash
+cat > slackbot-with-tokens.json <<'EOF'
 {
+  "name": "My Slack Bot",
   "bot_token": "xoxb-your-bot-token",
-  "app_token": "xapp-your-app-token"
+  "app_token": "xapp-your-app-token",
+  "session_config": {
+    "initial_message_template": "{{.event.text}}"
+  }
 }
+EOF
+
+agentapi-proxy client slackbot create -f slackbot-with-tokens.json
 ```
 
 **Note:** Tokens are write-only and will not be returned in GET requests for security.
