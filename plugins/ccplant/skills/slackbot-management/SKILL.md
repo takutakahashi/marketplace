@@ -41,7 +41,7 @@ curl -X POST https://api.example.com/slackbots \
   }'
 ```
 
-#### Team-Scoped SlackBot with Channel Filter
+#### Team-Scoped SlackBot with Channel and Event Filters
 
 ```bash
 curl -X POST https://api.example.com/slackbots \
@@ -54,6 +54,10 @@ curl -X POST https://api.example.com/slackbots \
     "bot_token_secret_name": "my-slack-bot-token",
     "bot_token_secret_key": "bot-token",
     "allowed_channel_names": ["dev", "backend"],
+    "allowed_event_types": ["message", "app_mention"],
+    "notify_on_session_created": true,
+    "allow_bot_messages": false,
+    "max_sessions": 10,
     "session_config": {
       "initial_message_template": "{{.event.text}}",
       "tags": {
@@ -68,12 +72,22 @@ curl -X POST https://api.example.com/slackbots \
 - `scope`: `user` (default) or `team`
 - `team_id`: Required when `scope` is `team`
 - `bot_token_secret_name`: Kubernetes secret name containing the bot token
-- `bot_token_secret_key`: Key within the secret containing the bot token (default: "token")
-- `allowed_channel_names`: Optional list of allowed channel names (without #). If omitted, all channels are allowed.
+- `bot_token_secret_key`: Key within the secret containing the bot token (default: "bot-token")
+- `bot_token`: Direct bot token (xoxb-...) - alternative to secret reference
+- `app_token`: Direct app-level token for Socket Mode (xapp-...) - alternative to secret reference
+- `allowed_channel_names`: Optional list of allowed channel names (without #). Supports partial matching. If omitted, all channels are allowed.
+- `allowed_event_types`: Optional list of Slack event types to process (e.g., ["message", "app_mention"]). If omitted, all event types are allowed.
+- `notify_on_session_created`: Post a notification message with the session URL when a session is created (default: true)
+- `allow_bot_messages`: Process messages from other bots (default: false)
+- `max_sessions`: Maximum concurrent sessions (default: 10)
 - `session_config`: Configuration for created sessions
-  - `initial_message_template`: Go template for initial message
-  - `tags`: Tags to apply to created sessions
-  - `environment`: Environment variables for the session
+  - `initial_message_template`: Go template for new thread sessions
+  - `reuse_message_template`: Go template for messages sent to existing thread sessions
+  - `tags`: Tags to apply to created sessions (supports Go template values)
+  - `environment`: Environment variables for the session (supports Go template values)
+  - `params`: SlackBotSessionParams
+    - `agent_type`: Agent type (e.g., "claude-agentapi")
+    - `oneshot`: Auto-delete session after response (default: false)
 
 **Response:**
 ```json
@@ -201,15 +215,21 @@ Team-scoped bot for incident response:
 
 ## Template Variables
 
-The `initial_message_template` supports Go template syntax with access to Slack event data:
+The `initial_message_template` and `reuse_message_template` support Go template syntax with access to Slack event data:
 
 **Common variables:**
-- `{{.event.type}}`: Event type (e.g., "message")
+- `{{.event.type}}`: Event type (e.g., "message", "app_mention")
 - `{{.event.user}}`: User ID who triggered the event
 - `{{.event.channel}}`: Channel ID where the event occurred
 - `{{.event.text}}`: Message text
 - `{{.event.ts}}`: Event timestamp
 - `{{.event.thread_ts}}`: Thread timestamp (for threaded messages)
+- `{{.team_id}}`: Slack workspace team ID
+- `{{.api_app_id}}`: Slack app ID
+
+**Slack formatting:**
+- `<@{{.event.user}}>`: Mention user
+- `<#{{.event.channel}}>`: Link to channel
 
 **Example:**
 ```
@@ -218,7 +238,9 @@ New message from <@{{.event.user}}> in <#{{.event.channel}}>: {{.event.text}}
 
 ## Bot Token Setup
 
-SlackBots require a Slack bot token stored in a Kubernetes secret:
+SlackBots require a Slack bot token and app-level token. There are two ways to provide them:
+
+### Method 1: Kubernetes Secret (Recommended)
 
 1. Create a Slack App at https://api.slack.com/apps
 2. Enable Socket Mode and generate an App-Level Token with `connections:write` scope
@@ -239,6 +261,19 @@ kubectl create secret generic my-slack-bot-token \
   "bot_token_secret_key": "bot-token"
 }
 ```
+
+### Method 2: Direct Token Provision
+
+Provide tokens directly in the request (they will be stored in a Kubernetes secret automatically):
+
+```json
+{
+  "bot_token": "xoxb-your-bot-token",
+  "app_token": "xapp-your-app-token"
+}
+```
+
+**Note:** Tokens are write-only and will not be returned in GET requests for security.
 
 ## Access Control
 

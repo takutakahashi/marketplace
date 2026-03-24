@@ -62,14 +62,20 @@ curl -X POST https://api.example.com/webhooks \
           "tags": {
             "repository": "{{.repository.full_name}}",
             "pr": "{{.pull_request.number}}"
-          }
+          },
+          "reuse_session": false,
+          "mount_payload": false
         }
       }
-    ]
+    ],
+    "max_sessions": 10,
+    "signature_type": "hmac",
+    "signature_header": "X-Hub-Signature-256",
+    "signature_prefix": "sha256="
   }'
 ```
 
-#### Custom Webhook (Slack, Datadog, etc.)
+#### Custom Webhook (Slack, Datadog, Sentry, etc.)
 
 ```bash
 curl -X POST https://api.example.com/webhooks \
@@ -90,6 +96,35 @@ curl -X POST https://api.example.com/webhooks \
             "source": "slack",
             "severity": "{{.event.severity}}"
           }
+        }
+      }
+    ],
+    "max_sessions": 5,
+    "signature_type": "hmac",
+    "signature_header": "X-Signature"
+  }'
+```
+
+**For Static Token Verification (e.g., Sentry):**
+
+```bash
+curl -X POST https://api.example.com/webhooks \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sentry Error Alerts",
+    "type": "custom",
+    "secret": "your-static-secret-token",
+    "signature_type": "static",
+    "signature_header": "X-Sentry-Token",
+    "triggers": [
+      {
+        "name": "Error event",
+        "conditions": {
+          "go_template": "{{ eq .event.level \"error\" }}"
+        },
+        "session_config": {
+          "initial_message_template": "Sentry error: {{.event.title}}"
         }
       }
     ]
@@ -168,6 +203,81 @@ curl -X POST https://api.example.com/webhooks/WEBHOOK_ID/trigger \
     "dry_run": false
   }'
 ```
+
+## Advanced Configuration
+
+### Signature Verification
+
+Webhooks support two types of signature verification:
+
+**1. HMAC Signature (default)**
+```json
+{
+  "signature_type": "hmac",
+  "signature_header": "X-Hub-Signature-256",
+  "signature_prefix": "sha256="
+}
+```
+
+The webhook validates HMAC signatures automatically. The `signature_prefix` is auto-detected but can be explicitly set:
+- GitHub: `sha256=`
+- Slack: `v0=`
+- Custom: any prefix or empty string
+
+**2. Static Token**
+```json
+{
+  "signature_type": "static",
+  "signature_header": "X-Custom-Token",
+  "secret": "your-static-token"
+}
+```
+
+The webhook compares the header value directly against the secret.
+
+### Concurrency Control
+
+Limit the number of concurrent sessions created by a webhook:
+
+```json
+{
+  "max_sessions": 10
+}
+```
+
+Default: 10, Maximum: 100. When the limit is reached, new webhook events are queued.
+
+### Session Reuse
+
+Reuse existing sessions instead of creating new ones:
+
+```json
+{
+  "session_config": {
+    "reuse_session": true,
+    "reuse_message_template": "New event: {{.event.title}}"
+  }
+}
+```
+
+When `reuse_session` is enabled:
+- If an active session exists matching the same tags, send a new message to it
+- If no session exists, create a new one with `initial_message_template`
+- Use `reuse_message_template` for messages sent to existing sessions
+
+### Mount Webhook Payload
+
+Mount the webhook payload as a file in the container:
+
+```json
+{
+  "session_config": {
+    "mount_payload": true
+  }
+}
+```
+
+The payload will be available at `/webhook-payload.json` in the session container.
 
 ## Reference Documentation
 

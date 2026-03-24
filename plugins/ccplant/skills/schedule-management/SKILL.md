@@ -55,6 +55,7 @@ curl -X POST https://api.example.com/schedules \
   -d '{
     "name": "Daily Standup Bot",
     "cron_expr": "0 9 * * 1-5",
+    "timezone": "America/New_York",
     "session_config": {
       "tags": {
         "repository": "org/standup-bot",
@@ -69,6 +70,11 @@ curl -X POST https://api.example.com/schedules \
     }
   }'
 ```
+
+**Timezone Support:**
+- `timezone`: IANA timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo")
+- Default: "Asia/Tokyo"
+- The cron expression is evaluated in the specified timezone
 
 **Common Cron Expressions:**
 - `0 9 * * 1-5` - Every weekday at 9:00 AM
