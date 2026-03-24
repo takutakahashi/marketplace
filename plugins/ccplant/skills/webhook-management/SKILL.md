@@ -35,100 +35,105 @@ Webhooks enable automatic session creation when events occur in external systems
 
 #### GitHub Webhook
 
+First, create a JSON file with your webhook configuration:
+
 ```bash
-curl -X POST https://api.example.com/webhooks \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Pull Request Reviewer",
-    "type": "github",
-    "github": {
-      "allowed_events": ["pull_request"],
-      "allowed_repositories": ["owner/repo"]
-    },
-    "triggers": [
-      {
-        "name": "PR opened",
-        "enabled": true,
-        "conditions": {
-          "github": {
-            "events": ["pull_request"],
-            "actions": ["opened"],
-            "draft": false
-          }
-        },
-        "session_config": {
-          "initial_message_template": "Review PR #{{.pull_request.number}}: {{.pull_request.title}}",
-          "tags": {
-            "repository": "{{.repository.full_name}}",
-            "pr": "{{.pull_request.number}}"
-          },
-          "reuse_session": false,
-          "mount_payload": false
+cat > webhook-github.json <<'EOF'
+{
+  "name": "Pull Request Reviewer",
+  "type": "github",
+  "github": {
+    "allowed_events": ["pull_request"],
+    "allowed_repositories": ["owner/repo"]
+  },
+  "triggers": [
+    {
+      "name": "PR opened",
+      "enabled": true,
+      "conditions": {
+        "github": {
+          "events": ["pull_request"],
+          "actions": ["opened"],
+          "draft": false
         }
+      },
+      "session_config": {
+        "initial_message_template": "Review PR #{{.pull_request.number}}: {{.pull_request.title}}",
+        "tags": {
+          "repository": "{{.repository.full_name}}",
+          "pr": "{{.pull_request.number}}"
+        },
+        "reuse_session": false,
+        "mount_payload": false
       }
-    ],
-    "max_sessions": 10,
-    "signature_type": "hmac",
-    "signature_header": "X-Hub-Signature-256",
-    "signature_prefix": "sha256="
-  }'
+    }
+  ],
+  "max_sessions": 10,
+  "signature_type": "hmac",
+  "signature_header": "X-Hub-Signature-256",
+  "signature_prefix": "sha256="
+}
+EOF
+
+agentapi-proxy client webhook create -f webhook-github.json
 ```
 
 #### Custom Webhook (Slack, Datadog, Sentry, etc.)
 
 ```bash
-curl -X POST https://api.example.com/webhooks \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Slack Incident Alerts",
-    "type": "custom",
-    "triggers": [
-      {
-        "name": "Critical incident",
-        "conditions": {
-          "go_template": "{{ and (eq .event.type \"incident\") (eq .event.severity \"critical\") }}"
-        },
-        "session_config": {
-          "initial_message_template": "Incident: {{.event.title}}",
-          "tags": {
-            "source": "slack",
-            "severity": "{{.event.severity}}"
-          }
+cat > webhook-custom.json <<'EOF'
+{
+  "name": "Slack Incident Alerts",
+  "type": "custom",
+  "triggers": [
+    {
+      "name": "Critical incident",
+      "conditions": {
+        "go_template": "{{ and (eq .event.type \"incident\") (eq .event.severity \"critical\") }}"
+      },
+      "session_config": {
+        "initial_message_template": "Incident: {{.event.title}}",
+        "tags": {
+          "source": "slack",
+          "severity": "{{.event.severity}}"
         }
       }
-    ],
-    "max_sessions": 5,
-    "signature_type": "hmac",
-    "signature_header": "X-Signature"
-  }'
+    }
+  ],
+  "max_sessions": 5,
+  "signature_type": "hmac",
+  "signature_header": "X-Signature"
+}
+EOF
+
+agentapi-proxy client webhook create -f webhook-custom.json
 ```
 
 **For Static Token Verification (e.g., Sentry):**
 
 ```bash
-curl -X POST https://api.example.com/webhooks \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Sentry Error Alerts",
-    "type": "custom",
-    "secret": "your-static-secret-token",
-    "signature_type": "static",
-    "signature_header": "X-Sentry-Token",
-    "triggers": [
-      {
-        "name": "Error event",
-        "conditions": {
-          "go_template": "{{ eq .event.level \"error\" }}"
-        },
-        "session_config": {
-          "initial_message_template": "Sentry error: {{.event.title}}"
-        }
+cat > webhook-sentry.json <<'EOF'
+{
+  "name": "Sentry Error Alerts",
+  "type": "custom",
+  "secret": "your-static-secret-token",
+  "signature_type": "static",
+  "signature_header": "X-Sentry-Token",
+  "triggers": [
+    {
+      "name": "Error event",
+      "conditions": {
+        "go_template": "{{ eq .event.level \"error\" }}"
+      },
+      "session_config": {
+        "initial_message_template": "Sentry error: {{.event.title}}"
       }
-    ]
-  }'
+    }
+  ]
+}
+EOF
+
+agentapi-proxy client webhook create -f webhook-sentry.json
 ```
 
 **Response:**
@@ -143,40 +148,47 @@ curl -X POST https://api.example.com/webhooks \
 ### Listing Webhooks
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/webhooks
+agentapi-proxy client webhook list
+```
+
+### Getting a Specific Webhook
+
+```bash
+agentapi-proxy client webhook get WEBHOOK_ID
 ```
 
 ### Updating a Webhook
 
 ```bash
-curl -X PUT https://api.example.com/webhooks/WEBHOOK_ID \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Updated Webhook Name",
-    "status": "active",
-    "triggers": [...]
-  }'
+# Update specific fields using apply (patch)
+echo '{"max_sessions":15}' | agentapi-proxy client webhook apply WEBHOOK_ID
+
+# Or update multiple fields
+cat > update.json <<'EOF'
+{
+  "name": "Updated Webhook Name",
+  "status": "active"
+}
+EOF
+
+cat update.json | agentapi-proxy client webhook apply WEBHOOK_ID
 ```
 
 ### Deleting a Webhook
 
 ```bash
-curl -X DELETE https://api.example.com/webhooks/WEBHOOK_ID \
-  -H "X-API-Key: YOUR_API_KEY"
+agentapi-proxy client webhook delete WEBHOOK_ID
 ```
 
 ### Regenerating Webhook Secret
 
 ```bash
-curl -X POST https://api.example.com/webhooks/WEBHOOK_ID/regenerate-secret \
-  -H "X-API-Key: YOUR_API_KEY"
+agentapi-proxy client webhook regenerate-secret WEBHOOK_ID
 ```
 
 ### Testing a Webhook
 
-Test a webhook with a custom payload to validate trigger conditions:
+**Note:** The `test` or `trigger` command is not yet implemented in the CLI client. Use the API directly if you need to test a webhook:
 
 ```bash
 # Dry run (test without creating a session)
