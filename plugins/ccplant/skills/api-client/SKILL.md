@@ -49,9 +49,22 @@ curl -X POST https://api.example.com/start \
     "tags": {
       "repository": "my-repo",
       "branch": "main"
+    },
+    "params": {
+      "message": "Start working on task",
+      "initial_message_wait_second": 2
+    },
+    "memory_key": {
+      "project": "my-project",
+      "team": "backend"
     }
   }'
 ```
+
+**Additional Fields:**
+- `params.message`: Initial message to send to the session
+- `params.initial_message_wait_second`: Wait time (in seconds) before sending the initial message (default: 2)
+- `memory_key`: Custom tag map for memory lookup. Memories matching these tags will be included in the session context.
 
 Response:
 ```json
