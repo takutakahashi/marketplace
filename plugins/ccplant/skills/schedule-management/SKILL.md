@@ -241,8 +241,31 @@ curl -X POST https://api.example.com/schedules/SCHEDULE_ID/trigger \
 - **Team Scope**: All team members can access and manage the schedule
 - **Admin**: Can view and manage all schedules
 
+## Template Variables
+
+For schedule sessions, the `memory_key` map values support Go template rendering with schedule context variables:
+
+- `{{.schedule_id}}`: Unique identifier of the schedule
+- `{{.schedule_name}}`: Human-readable name of the schedule
+- `{{.timezone}}`: Schedule timezone (IANA format, e.g., `Asia/Tokyo`)
+
+**Example:**
+```json
+{
+  "memory_key": {
+    "schedule_ref": "{{.schedule_id}}",
+    "schedule_name": "{{.schedule_name}}"
+  }
+}
+```
+
+> **Note:** The `params.message` field uses static text for schedules, not template rendering. Use the `memory_key` for dynamic references.
+
+For the complete template variables reference including all available functions, see [TEMPLATE_VARIABLES.md](../references/TEMPLATE_VARIABLES.md#schedule-template-variables).
+
 ## Reference Documentation
 
 For complete API endpoint documentation and permissions, see:
 - [API_REFERENCE.md](../references/API_REFERENCE.md#schedule-management-endpoints) - Complete schedule API reference
 - [PERMISSIONS.md](../references/PERMISSIONS.md) - Role-based access control details
+- [TEMPLATE_VARIABLES.md](../references/TEMPLATE_VARIABLES.md) - Go template variables reference
