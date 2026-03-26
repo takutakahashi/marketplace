@@ -214,13 +214,16 @@ The `initial_message_template` and `reuse_message_template` support Go template 
 
 **Common variables:**
 - `{{.event.type}}`: Event type (e.g., "message", "app_mention")
+- `{{.event.subtype}}`: Event subtype (e.g., "bot_message")
 - `{{.event.user}}`: User ID who triggered the event
 - `{{.event.channel}}`: Channel ID where the event occurred
 - `{{.event.text}}`: Message text
 - `{{.event.ts}}`: Event timestamp
 - `{{.event.thread_ts}}`: Thread timestamp (for threaded messages)
+- `{{.event.bot_id}}`: Bot ID (if sent by a bot)
 - `{{.team_id}}`: Slack workspace team ID
-- `{{.api_app_id}}`: Slack app ID
+- `{{.thread_messages}}`: Full thread context (all messages in thread)
+- `{{.bot_id}}`: SlackBot ID
 
 **Slack formatting:**
 - `<@{{.event.user}}>`: Mention user
@@ -230,6 +233,8 @@ The `initial_message_template` and `reuse_message_template` support Go template 
 ```
 New message from <@{{.event.user}}> in <#{{.event.channel}}>: {{.event.text}}
 ```
+
+For the complete template variables reference including all available functions, see [TEMPLATE_VARIABLES.md](../references/TEMPLATE_VARIABLES.md#slack-event-template-variables).
 
 ## Bot Token Setup
 

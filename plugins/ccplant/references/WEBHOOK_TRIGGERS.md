@@ -74,9 +74,22 @@ Most flexible option, supports both GitHub and custom webhooks.
 - `and`, `or`, `not`: Logical operators
 - `contains`, `hasPrefix`, `hasSuffix`: String functions
 - `toLower`, `toUpper`, `trimSpace`: String manipulation
+- `split`, `join`, `replace`: String manipulation
+- `toString`: Type conversion
 - `len`: Length of string/array
 - `in`: Check if value in array
 - `matches`: Regex matching
+
+For a complete list of available functions, see [Template Variables Reference](TEMPLATE_VARIABLES.md#available-template-functions).
+
+**Available Template Variables:**
+
+The Go template has access to the full event payload as template variables. Available variables depend on the webhook type:
+
+- **GitHub webhooks**: `.action`, `.ref`, `.repository`, `.sender`, `.pull_request`, `.issue`, `.commits`, `.head_commit`
+- **Custom webhooks**: All top-level keys from the incoming JSON payload
+
+For the full variable reference, see [Template Variables Reference](TEMPLATE_VARIABLES.md).
 
 **Examples:**
 
@@ -93,6 +106,12 @@ Most flexible option, supports both GitHub and custom webhooks.
   (not .pull_request.draft)
   (in .pull_request.base.ref (list "main" "develop"))
 }}
+
+// Push to specific branch
+{{ and (hasPrefix .ref "refs/heads/") (eq .repository.full_name "owner/repo") }}
+
+// Custom webhook: deployment to production
+{{ and (eq .event_type "deployment") (eq .deployment.environment "production") }}
 ```
 
 ## Priority and Evaluation
@@ -130,6 +149,8 @@ Triggers are evaluated in priority order (highest first). If `stop_on_match` is 
 
 ### GitHub: PR Review Request
 
+The `initial_message_template`, `environment`, `tags`, and other `session_config` fields also support Go templates with access to the same payload variables. See [Template Variables Reference](TEMPLATE_VARIABLES.md) for all available variables.
+
 ```json
 {
   "name": "PR needs review",
@@ -142,7 +163,7 @@ Triggers are evaluated in priority order (highest first). If `stop_on_match` is 
     }
   },
   "session_config": {
-    "initial_message_template": "Review PR #{{.pull_request.number}}: {{.pull_request.title}}\n\nAuthor: {{.pull_request.user.login}}\nFiles changed: {{.pull_request.changed_files}}",
+    "initial_message_template": "Review PR #{{.pull_request.number}}: {{.pull_request.title}}\n\nAuthor: {{.pull_request.user.login}}\nBranch: {{.pull_request.head.ref}} → {{.pull_request.base.ref}}\nURL: {{.pull_request.html_url}}",
     "tags": {
       "repository": "{{.repository.full_name}}",
       "pr": "{{.pull_request.number}}"

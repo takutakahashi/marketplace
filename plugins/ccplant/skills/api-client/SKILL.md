@@ -15,109 +15,50 @@ description: |
 
 # agentapi-proxy API
 
-This skill provides guidance for interacting with the agentapi-proxy API using API Key authentication.
+This skill provides guidance for interacting with the agentapi-proxy API.
 
-## Authentication
+## CLI: `agentapi-proxy client`
 
-agentapi-proxy supports multiple authentication methods. The most common are:
+`agentapi-proxy client` を使うことで全リソースへアクセスできます。以下のサブコマンドが利用可能です：
 
-### Method 1: X-API-Key Header (Recommended)
+| サブコマンド | 用途 | 操作 |
+|-------------|------|------|
+| `task` | タスク管理 | create / list / get / update / delete |
+| `memory` | メモリ管理 | create / list / get / update / delete / upsert |
+| `schedule` | スケジュール管理 | create / list / get / apply / delete |
+| `webhook` | Webhook 管理 | create / list / get / apply / delete / regenerate-secret |
+| `slackbot` | SlackBot 管理 | create / list / get / apply / delete |
+| `send` | エージェントへのメッセージ送信 | - |
+| `status` | エージェントのステータス取得 | - |
+| `events` | エージェントイベントの監視 | - |
+| `history` | 会話履歴の取得 | - |
+| `delete-session` | 現在のセッションの削除 | - |
+| `send-notification` | プッシュ通知の送信 | - |
+| `summarize-drafts` | ドラフトメモリの要約 | - |
+
+> **Note:** タスクグループ (`task-group`) は CLI 未対応です。MCP ツールを使用してください。
+
+### 接続設定
+
+エンドポイントと認証は以下の環境変数から自動解決されます：
 
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" https://api.example.com/endpoint
+export AGENTAPI_PROXY_SERVICE_HOST=<host>
+export AGENTAPI_PROXY_SERVICE_PORT_HTTP=<port>  # または AGENTAPI_PROXY_SERVICE_PORT
+export AGENTAPI_KEY=<api-key>                    # 省略可（認証不要な場合）
 ```
 
-### Method 2: Authorization Bearer Token
+または `--endpoint` フラグで明示的に指定：
 
 ```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" https://api.example.com/endpoint
+agentapi-proxy client <command> --endpoint http://proxy:8080 --session-id SESSION_ID
 ```
 
 ## Core Workflows
 
-### Creating a Session
-
-```bash
-curl -X POST https://api.example.com/start \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "environment": {
-      "GITHUB_TOKEN": "ghp_...",
-      "CUSTOM_VAR": "value"
-    },
-    "tags": {
-      "repository": "my-repo",
-      "branch": "main"
-    },
-    "params": {
-      "message": "Start working on task",
-      "initial_message_wait_second": 2
-    },
-    "memory_key": {
-      "project": "my-project",
-      "team": "backend"
-    }
-  }'
-```
-
-**Additional Fields:**
-- `params.message`: Initial message to send to the session
-- `params.initial_message_wait_second`: Wait time (in seconds) before sending the initial message (default: 2)
-- `memory_key`: Custom tag map for memory lookup. Memories matching these tags will be included in the session context.
-
-Response:
-```json
-{
-  "session_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-### Searching Sessions
-
-```bash
-# List all sessions
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/search
-
-# Filter by status
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/search?status=active"
-
-# Filter by tags
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/search?tag.repository=my-repo&tag.branch=main"
-```
-
-### Deleting a Session
-
-```bash
-curl -X DELETE https://api.example.com/sessions/SESSION_ID \
-  -H "X-API-Key: YOUR_API_KEY"
-```
-
-### Routing to Session
-
-All requests to `/:sessionId/*` are proxied to the agentapi instance for that session:
-
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/SESSION_ID/message \
-  -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Hello", "type": "user"}'
-```
-
-### Viewing Notification History
-
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/notifications/history
-```
-
 ### Managing Tasks
 
-Tasks are units of work associated with a session. There are two types: `agent` tasks (created by the AI agent) and `user` tasks (created for human action). Use the `agentapi-proxy client task` CLI for full task management.
+Tasks are units of work associated with a session. There are two types: `agent` tasks (created by the AI agent) and `user` tasks (created for human action).
 
 **Create a task:**
 ```bash
@@ -183,134 +124,112 @@ agentapi-proxy client task delete TASK_ID \
 
 See [TASK_REFERENCE.md](references/TASK_REFERENCE.md) for complete task API documentation.
 
-### Managing Task Groups
-
-Task groups provide a way to organize and manage related tasks together.
-
-**Preferred Method: Use MCP Tools**
-
-When using Claude Code or environments with MCP support, use the built-in MCP tools:
-
-```
-# Create a task group
-Use the mcp__ccplant-dev__create_task_group tool
-
-# List task groups
-Use the mcp__ccplant-dev__list_task_groups tool
-
-# Delete a task group
-Use the mcp__ccplant-dev__delete_task_group tool
-```
-
-**Alternative: Direct API Calls**
-
-If MCP tools are not available, use curl:
-
-**Create a task group:**
-```bash
-curl -X POST https://api.example.com/task-groups \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Sprint 23 Tasks",
-    "description": "Tasks for the current sprint",
-    "scope": "user"
-  }'
-```
-
-**List task groups:**
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/task-groups
-```
-
-**Update a task group:**
-```bash
-curl -X PUT https://api.example.com/task-groups/GROUP_ID \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Updated Group Name"
-  }'
-```
-
-**Delete a task group:**
-```bash
-curl -X DELETE https://api.example.com/task-groups/GROUP_ID \
-  -H "X-API-Key: YOUR_API_KEY"
-```
-
 ### Managing Memory Entries
 
 Memory entries allow storing and retrieving contextual information for agents and users. Supports user-scoped (private) and team-scoped (shared) memories.
 
-**Preferred Method: Use MCP Tools**
-
-When using Claude Code or environments with MCP support, use the built-in MCP tools:
-
-```
-# Create a memory entry
-Use the mcp__ccplant-dev__create_memory tool
-
-# List memory entries
-Use the mcp__ccplant-dev__list_memories tool
-
-# Get a specific memory
-Use the mcp__ccplant-dev__get_memory tool
-
-# Update a memory entry
-Use the mcp__ccplant-dev__update_memory tool
-
-# Delete a memory entry
-Use the mcp__ccplant-dev__delete_memory tool
-```
-
-**Alternative: Direct API Calls**
-
-If MCP tools are not available, use curl:
-
 **Create a memory entry:**
 ```bash
-curl -X POST https://api.example.com/memories \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Project conventions",
-    "content": "Always use TypeScript for new files. Follow ESLint rules.",
-    "scope": "user"
-  }'
+# User-scoped memory
+agentapi-proxy client memory create \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --title "Project conventions" \
+  --content "Always use TypeScript for new files. Follow ESLint rules." \
+  --scope user
+
+# Team-scoped memory with tags
+agentapi-proxy client memory create \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --title "Team knowledge" \
+  --content-file /tmp/notes.md \
+  --scope team --team-id myorg/myteam \
+  --tag project=myapp
 ```
 
 **List memory entries:**
 ```bash
-# List all memories
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/memories
+# List all user memories
+agentapi-proxy client memory list \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --scope user
 
-# Search memories
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/memories?q=typescript"
+# List team memories filtered by tag
+agentapi-proxy client memory list \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --scope team --team-id myorg/myteam \
+  --tag project=myapp
 
-# Filter by team
-curl -H "X-API-Key: YOUR_API_KEY" \
-  "https://api.example.com/memories?scope=team&team_id=myorg/team-slug"
+# Output in Markdown format (suitable for injection into CLAUDE.md)
+agentapi-proxy client memory list \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --format markdown
 ```
 
-**Update a memory entry:**
+**Get / Update / Delete a memory entry:**
 ```bash
-curl -X PUT https://api.example.com/memories/MEMORY_ID \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Updated conventions",
-    "content": "Updated content"
-  }'
+# Get
+agentapi-proxy client memory get MEMORY_ID \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID
+
+# Update
+agentapi-proxy client memory update MEMORY_ID \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --title "Updated conventions" \
+  --content "Updated content"
+
+# Delete
+agentapi-proxy client memory delete MEMORY_ID \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID
 ```
 
-**Delete a memory entry:**
+**Upsert (create or update by key tags):**
 ```bash
-curl -X DELETE https://api.example.com/memories/MEMORY_ID \
-  -H "X-API-Key: YOUR_API_KEY"
+# Create or update a memory identified by key tags
+agentapi-proxy client memory upsert \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --title "Session summary" \
+  --content-file /tmp/content.md \
+  --key project=myapp --key env=prod \
+  --scope user
+```
+
+`upsert` はキータグで既存のメモリを検索し、見つかれば更新、なければ作成します。定期的なメモリ更新に便利です。
+
+**Summarize draft memories:**
+```bash
+# セッション終了後、ドラフトメモリを要約して本メモリに統合
+agentapi-proxy client summarize-drafts \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --source-session-id SOURCE_SESSION_ID \
+  --scope user \
+  --key project=myapp
+```
+
+### Managing Task Groups
+
+Task groups provide a way to organize and manage related tasks together.
+
+> **Note:** タスクグループは CLI 未対応です。MCP ツールを使用してください。
+
+```
+# Create a task group
+Use the mcp__ccplant__create_task_group tool
+
+# List task groups
+Use the mcp__ccplant__list_task_groups tool
+
+# Delete a task group
+Use the mcp__ccplant__delete_task_group tool
 ```
 
 ## API Reference
@@ -320,7 +239,3 @@ For complete API endpoint documentation, permissions, and authentication details
 - [AUTHENTICATION.md](references/AUTHENTICATION.md) - Authentication methods and configuration
 - [PERMISSIONS.md](references/PERMISSIONS.md) - Role-based access control details
 - [TASK_REFERENCE.md](references/TASK_REFERENCE.md) - Task management API reference
-
-## Helper Scripts
-
-Use `scripts/agentapi_request.sh` for quick API requests with automatic environment variable handling.

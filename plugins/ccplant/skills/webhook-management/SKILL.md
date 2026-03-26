@@ -297,3 +297,4 @@ For detailed information, see:
 - [WEBHOOK_REFERENCE.md](references/WEBHOOK_REFERENCE.md) - Complete webhook API and configuration
 - [WEBHOOK_TRIGGERS.md](references/WEBHOOK_TRIGGERS.md) - Trigger conditions and filtering
 - [WEBHOOK_EXAMPLES.md](references/WEBHOOK_EXAMPLES.md) - Integration examples for various services
+- [TEMPLATE_VARIABLES.md](references/TEMPLATE_VARIABLES.md) - Go template variables reference for all contexts
