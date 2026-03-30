@@ -1863,6 +1863,60 @@ curl -H "X-API-Key: YOUR_API_KEY" \
   https://api.example.com/notifications/history
 ```
 
+### POST /notifications/send
+
+Send a push notification to subscribers of a session or to a specific user.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "title": "Task completed",
+  "body": "Your requested task has been completed",
+  "url": "https://example.com/sessions/abc123"
+}
+```
+
+**Fields:**
+- `session_id` or `user_id` (required): Either session ID to notify subscribers or user ID to notify a specific user
+- `title` (required): Notification title
+- `body` (required): Notification body text
+- `url` (optional): URL to open when notification is clicked
+
+**Response:**
+```json
+{
+  "success": true,
+  "sent_count": 3
+}
+```
+
+**Example:**
+```bash
+# Notify subscribers of a session
+curl -X POST https://api.example.com/notifications/send \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Task completed",
+    "body": "Your requested task has been completed",
+    "url": "https://example.com/sessions/abc123"
+  }'
+
+# Notify a specific user
+curl -X POST https://api.example.com/notifications/send \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "alice",
+    "title": "Important update",
+    "body": "Please check your tasks"
+  }'
+```
+
 ## Authentication Endpoints
 
 These endpoints are typically used for OAuth flows and do not require API key authentication.
