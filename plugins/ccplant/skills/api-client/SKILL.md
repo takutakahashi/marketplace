@@ -6,8 +6,10 @@ description: |
   (3) Delete sessions, (4) Route requests to specific session instances, (5) Manage session sharing,
   (6) Access user settings and notifications, (7) Create and manage tasks associated with sessions,
   (8) Manage task groups for organizing tasks, (9) Create and manage memory entries for storing
-  contextual information. Supports multiple authentication methods including static API keys
-  (X-API-Key header) and Authorization Bearer tokens.
+  contextual information, (10) Manage credentials (auth.json), (11) Configure user/team settings
+  (Bedrock, MCP servers, plugin marketplaces), (12) Get user information, (13) View notification
+  history and manage push notification subscriptions. Supports multiple authentication methods
+  including static API keys (X-API-Key header) and Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
   use the webhook-management skill instead. For SlackBot management, use the slackbot-management
   skill instead.
@@ -36,7 +38,12 @@ This skill provides guidance for interacting with the agentapi-proxy API.
 | `send-notification` | プッシュ通知の送信 | - |
 | `summarize-drafts` | ドラフトメモリの要約 | - |
 
-> **Note:** タスクグループ (`task-group`) は CLI 未対応です。MCP ツールを使用してください。
+> **Note:** 以下の機能は CLI 未対応です。API を直接使用してください：
+> - タスクグループ (`task-group`) - MCP ツールを使用
+> - 認証情報管理 (`credentials`) - API 直接呼び出し
+> - 設定管理 (`settings`) - API 直接呼び出し
+> - ユーザー情報 (`user-info`) - API 直接呼び出し
+> - 通知履歴・購読 (`notifications/history`, `notification/subscribe`) - API 直接呼び出し
 
 ### 接続設定
 
@@ -230,6 +237,253 @@ Use the mcp__ccplant__list_task_groups tool
 
 # Delete a task group
 Use the mcp__ccplant__delete_task_group tool
+```
+
+### Managing Credentials
+
+Credentials allow storing and retrieving authentication data (e.g., auth.json for Claude.ai OAuth tokens). Users can manage their own credentials or team credentials if they belong to that team.
+
+> **Note:** 認証情報管理は CLI 未対応です。API を直接呼び出してください。
+
+**Get credential metadata:**
+```bash
+curl -X GET "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/credentials/auth" \
+  -H "X-API-Key: ${AGENTAPI_KEY}"
+```
+
+**Upload credentials:**
+```bash
+# From JSON file
+curl -X PUT "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/credentials/auth" \
+  -H "X-API-Key: ${AGENTAPI_KEY}" \
+  -H "Content-Type: application/json" \
+  -d @auth.json
+
+# Inline JSON
+curl -X PUT "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/credentials/auth" \
+  -H "X-API-Key: ${AGENTAPI_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claudeAiOauth": {
+      "accessToken": "sk-ant-...",
+      "refreshToken": "...",
+      "expiresAt": 1234567890
+    }
+  }'
+```
+
+**Delete credentials:**
+```bash
+curl -X DELETE "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/credentials/auth" \
+  -H "X-API-Key: ${AGENTAPI_KEY}"
+```
+
+**Response format:**
+```json
+{
+  "name": "auth",
+  "owner_type": "user",
+  "owner_id": "alice",
+  "exists": true,
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-02T00:00:00Z"
+}
+```
+
+### Managing Settings
+
+Settings allow configuring user or team preferences including AWS Bedrock, MCP servers, plugin marketplaces, and enabled plugins.
+
+> **Note:** 設定管理は CLI 未対応です。API を直接呼び出してください。
+
+**Get settings:**
+```bash
+# Get user settings
+curl -X GET "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/settings/${USER_ID}" \
+  -H "X-API-Key: ${AGENTAPI_KEY}"
+
+# Get team settings
+curl -X GET "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/settings/myorg-backend" \
+  -H "X-API-Key: ${AGENTAPI_KEY}"
+```
+
+**Update settings:**
+```bash
+# Update Bedrock settings
+curl -X PUT "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/settings/${USER_ID}" \
+  -H "X-API-Key: ${AGENTAPI_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bedrock": {
+      "enabled": true,
+      "model": "anthropic.claude-3-sonnet-20240229-v1:0",
+      "role_arn": "arn:aws:iam::123456789012:role/bedrock-role"
+    }
+  }'
+
+# Update MCP servers
+curl -X PUT "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/settings/${USER_ID}" \
+  -H "X-API-Key: ${AGENTAPI_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mcp_servers": {
+      "github": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_TOKEN": "ghp_xxxx"
+        }
+      }
+    }
+  }'
+
+# Update plugin marketplaces and enabled plugins
+curl -X PUT "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/settings/${USER_ID}" \
+  -H "X-API-Key: ${AGENTAPI_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "marketplaces": {
+      "my-marketplace": {
+        "url": "https://github.com/example/my-marketplace.git"
+      }
+    },
+    "enabled_plugins": [
+      "plugin1@my-marketplace",
+      "commit@claude-plugins-official"
+    ]
+  }'
+```
+
+**Delete settings:**
+```bash
+curl -X DELETE "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/settings/${USER_ID}" \
+  -H "X-API-Key: ${AGENTAPI_KEY}"
+```
+
+**Response format:**
+```json
+{
+  "name": "alice",
+  "bedrock": {
+    "enabled": true,
+    "model": "anthropic.claude-3-sonnet-20240229-v1:0",
+    "role_arn": "arn:aws:iam::123456789012:role/bedrock-role"
+  },
+  "mcp_servers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env_keys": ["GITHUB_TOKEN"]
+    }
+  },
+  "marketplaces": {
+    "my-marketplace": {
+      "url": "https://github.com/example/my-marketplace.git"
+    }
+  },
+  "enabled_plugins": ["plugin1@my-marketplace"],
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-02T00:00:00Z"
+}
+```
+
+### Getting User Information
+
+Get information about the currently authenticated user.
+
+> **Note:** ユーザー情報取得は CLI 未対応です。API を直接呼び出してください。
+
+**Get user info:**
+```bash
+curl -X GET "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/user/info" \
+  -H "X-API-Key: ${AGENTAPI_KEY}"
+```
+
+**Response format:**
+```json
+{
+  "user_id": "alice",
+  "email": "alice@example.com",
+  "name": "Alice Smith",
+  "teams": [
+    {
+      "team_id": "myorg/backend",
+      "role": "maintainer"
+    },
+    {
+      "team_id": "myorg/frontend",
+      "role": "member"
+    }
+  ]
+}
+```
+
+### Managing Notifications
+
+#### Notification History
+
+Get the history of notifications for the current user.
+
+> **Note:** 通知履歴は CLI 未対応です。API を直接呼び出してください。
+
+**Get notification history:**
+```bash
+curl -X GET "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/notifications/history" \
+  -H "X-API-Key: ${AGENTAPI_KEY}"
+```
+
+**Response format:**
+```json
+{
+  "notifications": [
+    {
+      "id": "notif-123",
+      "title": "Task completed",
+      "body": "Your task has been completed successfully",
+      "url": "https://example.com/session/abc123",
+      "created_at": "2025-01-01T12:00:00Z",
+      "read": false
+    }
+  ]
+}
+```
+
+#### Push Notification Subscription
+
+Manage Web Push notification subscriptions.
+
+> **Note:** 通知購読管理は CLI 未対応です。API を直接呼び出してください。
+
+**Subscribe to push notifications:**
+```bash
+curl -X POST "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/notification/subscribe" \
+  -H "X-API-Key: ${AGENTAPI_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endpoint": "https://fcm.googleapis.com/fcm/send/...",
+    "keys": {
+      "p256dh": "...",
+      "auth": "..."
+    }
+  }'
+```
+
+**Get push subscriptions:**
+```bash
+curl -X GET "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/notification/subscribe" \
+  -H "X-API-Key: ${AGENTAPI_KEY}"
+```
+
+**Unsubscribe from push notifications:**
+```bash
+curl -X DELETE "${AGENTAPI_PROXY_SERVICE_HOST}:${AGENTAPI_PROXY_SERVICE_PORT_HTTP}/notification/subscribe" \
+  -H "X-API-Key: ${AGENTAPI_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endpoint": "https://fcm.googleapis.com/fcm/send/..."
+  }'
 ```
 
 ## API Reference
