@@ -10,6 +10,7 @@
 - [Task Group Management Endpoints](#task-group-management-endpoints)
 - [Memory Management Endpoints](#memory-management-endpoints)
 - [SlackBot Management Endpoints](#slackbot-management-endpoints)
+- [Credentials Management Endpoints](#credentials-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
 - [Notification Endpoints](#notification-endpoints)
 - [Authentication Endpoints](#authentication-endpoints)
@@ -1694,6 +1695,107 @@ curl -X DELETE https://api.example.com/slackbots/slackbot-abc123 \
 - Users can only delete their own SlackBots
 - Team members can delete team-scoped SlackBots
 
+## Credentials Management Endpoints
+
+The Credentials endpoints allow users to securely upload, manage, and delete authentication credentials (e.g., `auth.json` for Claude Code OAuth tokens). Credentials are stored securely in Kubernetes secrets and are accessible in agent sessions.
+
+### GET /credentials/:name
+
+Get metadata for a named credential. The actual credential data is never exposed via the API - only whether it exists.
+
+**Permissions Required:** `session:read`
+
+**Path Parameters:**
+- `name` (required): Credential name (e.g., `auth` for `auth.json`). Users can access their own credentials or credentials of teams they belong to.
+
+**Response:**
+```json
+{
+  "name": "auth",
+  "has_data": true,
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-02T12:30:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/credentials/auth
+```
+
+### PUT /credentials/:name
+
+Upload or replace a named credential file. The request body must be valid JSON.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `name` (required): Credential name (e.g., `auth`)
+
+**Request Body:**
+Raw JSON credential data (e.g., contents of `auth.json`):
+```json
+{
+  "claudeAiOauth": {
+    "accessToken": "sk-ant-...",
+    "refreshToken": "...",
+    "expiresAt": 1234567890
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "name": "auth",
+  "has_data": true,
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-02T15:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/credentials/auth \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claudeAiOauth": {
+      "accessToken": "sk-ant-...",
+      "refreshToken": "...",
+      "expiresAt": 1234567890
+    }
+  }'
+```
+
+### DELETE /credentials/:name
+
+Remove a named credential.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `name` (required): Credential name
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/credentials/auth \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Access Control:**
+- Users can access and modify their own credentials (user-scoped)
+- Team members can access and modify credentials for teams they belong to (team-scoped)
+- Credentials are automatically mounted in agent sessions at `/credentials/{name}.json`
+
 ## User & Settings Endpoints
 
 ### GET /user/info
@@ -1710,46 +1812,220 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 
 ### GET /settings/:name
 
-Get a specific setting value.
+Get settings for a user or team. Settings include Bedrock configuration, MCP servers, plugin marketplaces, enabled plugins, and custom environment variables.
 
 **Permissions Required:** `session:read`
 
+**Path Parameters:**
+- `name` (required): Settings name - either a user ID or team name in `org/team-slug` format
+
+**Response:**
+```json
+{
+  "name": "myorg-backend",
+  "bedrock": {
+    "enabled": true,
+    "model": "anthropic.claude-3-sonnet-20240229-v1:0",
+    "role_arn": "arn:aws:iam::123456789012:role/bedrock-role",
+    "profile": "default"
+  },
+  "mcp_servers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env_keys": ["GITHUB_TOKEN"]
+    },
+    "slack": {
+      "type": "http",
+      "url": "https://mcp.example.com/slack",
+      "header_keys": ["Authorization"]
+    }
+  },
+  "marketplaces": {
+    "my-marketplace": {
+      "url": "https://github.com/example/my-marketplace.git"
+    }
+  },
+  "enabled_plugins": [
+    "commit@claude-plugins-official",
+    "plugin1@my-marketplace"
+  ],
+  "env_var_keys": ["CUSTOM_VAR", "API_KEY"],
+  "has_claude_code_oauth_token": true,
+  "auth_mode": "oauth",
+  "preferred_team_id": "myorg/backend",
+  "slack_user_id": "U1234567890",
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-02T00:00:00Z"
+}
+```
+
+**Fields:**
+- `bedrock`: AWS Bedrock settings (credentials not returned)
+  - `enabled`: Whether Bedrock is enabled
+  - `model`: Bedrock model ID
+  - `role_arn`: IAM role ARN for Bedrock access
+  - `profile`: AWS profile name
+- `mcp_servers`: MCP server configurations (keyed by server name)
+  - `type`: Server type (`stdio`, `http`, or `sse`)
+  - `command`/`args`: For stdio servers
+  - `url`: For HTTP/SSE servers
+  - `env_keys`: Environment variable keys (values not returned)
+  - `header_keys`: HTTP header keys (values not returned)
+- `marketplaces`: Claude Code plugin marketplace configurations
+- `enabled_plugins`: List of enabled plugins in `plugin@marketplace` format
+- `env_var_keys`: Custom environment variable keys (values not returned for security)
+- `has_claude_code_oauth_token`: Whether Claude Code OAuth token is configured
+- `auth_mode`: Authentication mode (`oauth`, `bedrock`, or empty)
+- `preferred_team_id`: Team whose settings to use exclusively (empty = merge all teams)
+- `slack_user_id`: Slack user ID for DM notifications
+
 **Example:**
 ```bash
+# Get user settings
 curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/settings/theme
+  https://api.example.com/settings/alice
+
+# Get team settings
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/settings/myorg-backend
 ```
 
 ### PUT /settings/:name
 
-Update a setting value.
+Create or update settings for a user or team. All fields are optional - omitted fields will not be modified.
 
-**Permissions Required:** `session:create`
+**Permissions Required:** `session:create` (users can modify their own settings; team admins/maintainers can modify team settings)
+
+**Path Parameters:**
+- `name` (required): Settings name - either a user ID or team name in `org/team-slug` format
 
 **Request Body:**
 ```json
 {
-  "value": "dark"
+  "bedrock": {
+    "enabled": true,
+    "model": "anthropic.claude-3-sonnet-20240229-v1:0",
+    "access_key_id": "AKIAIOSFODNN7EXAMPLE",
+    "secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    "role_arn": "arn:aws:iam::123456789012:role/bedrock-role",
+    "profile": "default"
+  },
+  "mcp_servers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_xxxx"
+      }
+    },
+    "slack": {
+      "type": "http",
+      "url": "https://mcp.example.com/slack",
+      "headers": {
+        "Authorization": "Bearer xoxb-xxxx"
+      }
+    }
+  },
+  "marketplaces": {
+    "my-marketplace": {
+      "url": "https://github.com/example/my-marketplace.git"
+    }
+  },
+  "enabled_plugins": [
+    "plugin1@my-marketplace",
+    "plugin2@my-marketplace"
+  ],
+  "env_vars": {
+    "CUSTOM_VAR": "value",
+    "API_KEY": "secret-key"
+  },
+  "claude_code_oauth_token": "sk-ant-...",
+  "auth_mode": "oauth",
+  "preferred_team_id": "myorg/backend",
+  "slack_user_id": "U1234567890"
+}
+```
+
+**Fields:**
+- All fields are optional
+- `bedrock`: AWS Bedrock configuration
+- `mcp_servers`: MCP server configurations (use `env`/`headers` to set credentials)
+- `marketplaces`: Plugin marketplace Git URLs
+- `enabled_plugins`: List of plugins to enable
+- `env_vars`: Custom environment variables (empty string preserves existing value; keys not included are preserved)
+- `claude_code_oauth_token`: Claude Code OAuth token (empty string removes it)
+- `auth_mode`: Preferred authentication mode
+- `preferred_team_id`: Team to use exclusively (empty string = merge all teams)
+- `slack_user_id`: Slack user ID for notifications (empty string removes it)
+
+**Example:**
+```bash
+# Update Bedrock settings
+curl -X PUT https://api.example.com/settings/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bedrock": {
+      "enabled": true,
+      "model": "anthropic.claude-3-sonnet-20240229-v1:0"
+    }
+  }'
+
+# Configure MCP servers
+curl -X PUT https://api.example.com/settings/myorg-backend \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mcp_servers": {
+      "github": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_TOKEN": "ghp_xxxx"
+        }
+      }
+    }
+  }'
+
+# Enable plugins from marketplace
+curl -X PUT https://api.example.com/settings/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "marketplaces": {
+      "my-marketplace": {
+        "url": "https://github.com/example/my-marketplace.git"
+      }
+    },
+    "enabled_plugins": [
+      "plugin1@my-marketplace"
+    ]
+  }'
+```
+
+### DELETE /settings/:name
+
+Delete settings for a user or team. Also deletes associated credentials and MCP server secrets.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `name` (required): Settings name
+
+**Response:**
+```json
+{
+  "success": true
 }
 ```
 
 **Example:**
 ```bash
-curl -X PUT https://api.example.com/settings/theme \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"value": "dark"}'
-```
-
-### DELETE /settings/:name
-
-Delete a setting.
-
-**Permissions Required:** `session:create`
-
-**Example:**
-```bash
-curl -X DELETE https://api.example.com/settings/theme \
+curl -X DELETE https://api.example.com/settings/myorg-backend \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 

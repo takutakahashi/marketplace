@@ -6,8 +6,9 @@ description: |
   (3) Delete sessions, (4) Route requests to specific session instances, (5) Manage session sharing,
   (6) Access user settings and notifications, (7) Create and manage tasks associated with sessions,
   (8) Manage task groups for organizing tasks, (9) Create and manage memory entries for storing
-  contextual information. Supports multiple authentication methods including static API keys
-  (X-API-Key header) and Authorization Bearer tokens.
+  contextual information, (10) Manage credentials for authentication (e.g., Claude Code OAuth tokens).
+  Supports multiple authentication methods including static API keys (X-API-Key header) and
+  Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
   use the webhook-management skill instead. For SlackBot management, use the slackbot-management
   skill instead.
@@ -231,6 +232,72 @@ Use the mcp__ccplant__list_task_groups tool
 # Delete a task group
 Use the mcp__ccplant__delete_task_group tool
 ```
+
+### Managing Credentials
+
+Credentials (e.g., Claude Code OAuth tokens) can be uploaded and managed via the API. These credentials are securely stored and automatically mounted in agent sessions.
+
+> **Note:** Credentials management is not yet available via CLI. Use the API directly:
+
+```bash
+# Upload credentials (e.g., auth.json)
+curl -X PUT https://api.example.com/credentials/auth \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "claudeAiOauth": {
+      "accessToken": "sk-ant-...",
+      "refreshToken": "...",
+      "expiresAt": 1234567890
+    }
+  }'
+
+# Get credential metadata
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/credentials/auth
+
+# Delete credentials
+curl -X DELETE https://api.example.com/credentials/auth \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+Credentials are automatically mounted at `/credentials/{name}.json` in agent sessions.
+
+### Managing Settings
+
+Settings include Bedrock configuration, MCP servers, plugin marketplaces, and custom environment variables. Settings can be configured at user or team level.
+
+> **Note:** Settings management is not yet available via CLI. Use the API directly:
+
+```bash
+# Get settings
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/settings/alice
+
+# Update settings (e.g., configure Bedrock)
+curl -X PUT https://api.example.com/settings/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bedrock": {
+      "enabled": true,
+      "model": "anthropic.claude-3-sonnet-20240229-v1:0"
+    },
+    "mcp_servers": {
+      "github": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_TOKEN": "ghp_xxxx"
+        }
+      }
+    },
+    "enabled_plugins": ["commit@claude-plugins-official"]
+  }'
+```
+
+See [API_REFERENCE.md](references/API_REFERENCE.md#credentials-management-endpoints) and [API_REFERENCE.md](references/API_REFERENCE.md#user--settings-endpoints) for complete details.
 
 ## API Reference
 
