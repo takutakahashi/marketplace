@@ -6,7 +6,8 @@ description: |
   (3) Delete sessions, (4) Route requests to specific session instances, (5) Manage session sharing,
   (6) Access user settings and notifications, (7) Create and manage tasks associated with sessions,
   (8) Manage task groups for organizing tasks, (9) Create and manage memory entries for storing
-  contextual information, (10) Manage credentials for authentication (e.g., Claude Code OAuth tokens).
+  contextual information, (10) Manage credentials for authentication (e.g., Claude Code OAuth tokens),
+  (11) Manage files (e.g., SSH keys) that are placed in agent sessions at startup.
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
@@ -232,6 +233,48 @@ Use the mcp__ccplant__list_task_groups tool
 # Delete a task group
 Use the mcp__ccplant__delete_task_group tool
 ```
+
+### Managing Files
+
+Files (e.g., SSH keys, configuration files) can be registered and will be placed inside agent sessions at startup. Files are stored securely and automatically mounted in agent containers.
+
+> **Note:** File management is not yet available via CLI. Use the API directly:
+
+```bash
+# Create a file (e.g., SSH private key)
+curl -X POST https://api.example.com/files \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "SSH Private Key",
+    "path": "/home/agentapi/.ssh/id_rsa",
+    "content": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+    "permissions": "0600"
+  }'
+
+# List all files
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/files
+
+# Get a specific file (including content)
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/files/FILE_ID
+
+# Update a file
+curl -X PUT https://api.example.com/files/FILE_ID \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated SSH Key",
+    "content": "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+  }'
+
+# Delete a file
+curl -X DELETE https://api.example.com/files/FILE_ID \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+Files are automatically mounted at the specified path in agent sessions. The provisioner writes files with mode `0600` by default for security.
 
 ### Managing Credentials
 
