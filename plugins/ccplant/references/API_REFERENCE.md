@@ -10,6 +10,7 @@
 - [Task Group Management Endpoints](#task-group-management-endpoints)
 - [Memory Management Endpoints](#memory-management-endpoints)
 - [SlackBot Management Endpoints](#slackbot-management-endpoints)
+- [Files Management Endpoints](#files-management-endpoints)
 - [Credentials Management Endpoints](#credentials-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
 - [Notification Endpoints](#notification-endpoints)
@@ -1694,6 +1695,196 @@ curl -X DELETE https://api.example.com/slackbots/slackbot-abc123 \
 **Access Control:**
 - Users can only delete their own SlackBots
 - Team members can delete team-scoped SlackBots
+
+## Files Management Endpoints
+
+The Files endpoints allow users to register arbitrary files (e.g., SSH keys, configuration files) that will be placed inside agent sessions at startup. Files are stored securely and automatically mounted in agent containers.
+
+### POST /files
+
+Create a new user file that will be placed in agent sessions.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "SSH Private Key",
+  "path": "/home/agentapi/.ssh/id_rsa",
+  "content": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+  "permissions": "0600"
+}
+```
+
+**Fields:**
+- `name`: Human-readable display name (optional)
+- `path` (required): Destination path inside the agent container (e.g., `/home/agentapi/.ssh/id_rsa`)
+- `content`: File content (plain text or base64-encoded)
+- `permissions`: Permissions hint (informational, e.g., `"0600"`)
+
+**Response:**
+```json
+{
+  "id": "file-abc123",
+  "name": "SSH Private Key",
+  "path": "/home/agentapi/.ssh/id_rsa",
+  "permissions": "0600",
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/files \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "SSH Private Key",
+    "path": "/home/agentapi/.ssh/id_rsa",
+    "content": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+    "permissions": "0600"
+  }'
+```
+
+### GET /files
+
+List all files registered for the authenticated user.
+
+**Permissions Required:** `session:read`
+
+**Response:**
+```json
+{
+  "files": [
+    {
+      "id": "file-abc123",
+      "name": "SSH Private Key",
+      "path": "/home/agentapi/.ssh/id_rsa",
+      "permissions": "0600",
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/files
+```
+
+**Note:** The file `content` is not included in the list response for security reasons. Use the individual file GET endpoint to retrieve content.
+
+### GET /files/:fileId
+
+Get a specific file by ID, including its content.
+
+**Permissions Required:** `session:read`
+
+**Path Parameters:**
+- `fileId` (required): File identifier (UUID)
+
+**Response:**
+```json
+{
+  "id": "file-abc123",
+  "name": "SSH Private Key",
+  "path": "/home/agentapi/.ssh/id_rsa",
+  "content": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+  "permissions": "0600",
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/files/file-abc123
+```
+
+**Access Control:**
+- Users can only access their own files
+
+### PUT /files/:fileId
+
+Update an existing file.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `fileId` (required): File identifier (UUID)
+
+**Request Body:**
+```json
+{
+  "name": "Updated SSH Key",
+  "path": "/home/agentapi/.ssh/id_ed25519",
+  "content": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
+  "permissions": "0600"
+}
+```
+
+**Note:** All fields are optional. Omitted fields will not be modified.
+
+**Response:**
+```json
+{
+  "id": "file-abc123",
+  "name": "Updated SSH Key",
+  "path": "/home/agentapi/.ssh/id_ed25519",
+  "permissions": "0600",
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/files/file-abc123 \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated SSH Key",
+    "content": "-----BEGIN OPENSSH PRIVATE KEY-----\n..."
+  }'
+```
+
+**Access Control:**
+- Users can only update their own files
+
+### DELETE /files/:fileId
+
+Delete a file by ID.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `fileId` (required): File identifier (UUID)
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/files/file-abc123 \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**Access Control:**
+- Users can only delete their own files
+
+**Usage Notes:**
+- Files are automatically mounted in agent sessions at startup
+- The provisioner writes files with mode `0600` by default for security
+- Files persist across sessions until explicitly deleted
+- Common use cases: SSH keys, configuration files, API tokens
+- File paths should be absolute and within the agent's home directory
 
 ## Credentials Management Endpoints
 
