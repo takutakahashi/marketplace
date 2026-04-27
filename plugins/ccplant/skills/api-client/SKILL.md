@@ -130,6 +130,13 @@ See [TASK_REFERENCE.md](references/TASK_REFERENCE.md) for complete task API docu
 
 Memory entries allow storing and retrieving contextual information for agents and users. Supports user-scoped (private) and team-scoped (shared) memories.
 
+**Tag-based Organization:**
+Memories support key-value tags for organization and filtering. Use tags to:
+- Categorize memories by project, topic, or purpose
+- Filter memories with `include_tag.{key}` (include) or `exclude_tag.{key}` (exclude) query parameters
+- Use the CLI `--tag` flag to filter when listing or creating memories
+- Leverage `upsert` command with `--key` tags to identify and update specific memories
+
 **Create a memory entry:**
 ```bash
 # User-scoped memory
@@ -158,12 +165,23 @@ agentapi-proxy client memory list \
   --session-id SESSION_ID \
   --scope user
 
-# List team memories filtered by tag
+# List team memories filtered by tag (include)
 agentapi-proxy client memory list \
   --endpoint http://proxy:8080 \
   --session-id SESSION_ID \
   --scope team --team-id myorg/myteam \
   --tag project=myapp
+
+# Filter by multiple tags (include)
+agentapi-proxy client memory list \
+  --endpoint http://proxy:8080 \
+  --session-id SESSION_ID \
+  --tag category=coding-standards \
+  --tag language=typescript
+
+# Exclude specific tags (requires direct API call)
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "http://proxy:8080/memories?exclude_tag.deprecated=true&exclude_tag.language=javascript"
 
 # Output in Markdown format (suitable for injection into CLAUDE.md)
 agentapi-proxy client memory list \
@@ -179,12 +197,23 @@ agentapi-proxy client memory get MEMORY_ID \
   --endpoint http://proxy:8080 \
   --session-id SESSION_ID
 
-# Update
+# Update (title and content)
 agentapi-proxy client memory update MEMORY_ID \
   --endpoint http://proxy:8080 \
   --session-id SESSION_ID \
   --title "Updated conventions" \
   --content "Updated content"
+
+# Update tags (requires direct API call)
+curl -X PUT http://proxy:8080/memories/MEMORY_ID \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tags": {
+      "category": "best-practices",
+      "reviewed": "true"
+    }
+  }'
 
 # Delete
 agentapi-proxy client memory delete MEMORY_ID \
