@@ -130,6 +130,69 @@ curl -X DELETE https://api.example.com/sessions/550e8400-e29b-41d4-a716-44665544
   -H "X-API-Key: ap_user_alice_987654321fedcba"
 ```
 
+### GET /sessions/status/stream
+
+Stream session status changes using Server-Sent Events (SSE).
+
+**Permissions Required:** `session:list`
+
+**Description:**
+- Returns an SSE stream of session status changes for all accessible sessions
+- The stream sends events whenever any session's status changes
+- Clients can use this endpoint to receive real-time updates without polling
+
+**Response (SSE stream):**
+```
+event: session-status
+data: {"session_id": "550e8400-e29b-41d4-a716-446655440000", "status": "active", "timestamp": "2024-01-01T12:00:00Z"}
+
+event: session-status
+data: {"session_id": "550e8400-e29b-41d4-a716-446655440000", "status": "completed", "timestamp": "2024-01-01T12:05:00Z"}
+```
+
+**Example:**
+```bash
+curl -N -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/status/stream
+```
+
+**Access Control:**
+- Users can only see status changes for sessions they have access to
+- Admin users can see status changes for all sessions
+
+### GET /sessions/status/wait
+
+Long-poll for the next session status change.
+
+**Permissions Required:** `session:list`
+
+**Description:**
+- Waits for the next session status change and returns it
+- If no status change occurs within the timeout period, returns an empty response
+- Useful for clients that prefer long-polling over SSE
+
+**Query Parameters:**
+- `timeout`: Maximum wait time in seconds (default: 30, max: 60)
+
+**Response:**
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "timestamp": "2024-01-01T12:05:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/sessions/status/wait?timeout=30"
+```
+
+**Access Control:**
+- Users can only see status changes for sessions they have access to
+- Admin users can see status changes for all sessions
+
 ### GET/POST /:sessionId/:path
 
 Proxy requests to the agentapi instance for the specified session.
