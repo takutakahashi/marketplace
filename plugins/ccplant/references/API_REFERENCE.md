@@ -3,6 +3,7 @@
 ## Table of Contents
 
 - [Session Management Endpoints](#session-management-endpoints)
+- [Session Status Monitoring Endpoints](#session-status-monitoring-endpoints)
 - [Session Sharing Endpoints](#session-sharing-endpoints)
 - [Schedule Management Endpoints](#schedule-management-endpoints)
 - [Webhook Management Endpoints](#webhook-management-endpoints)
@@ -13,6 +14,7 @@
 - [Files Management Endpoints](#files-management-endpoints)
 - [Credentials Management Endpoints](#credentials-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
+- [Settings Sync (GitHub) Endpoints](#settings-sync-github-endpoints)
 - [Notification Endpoints](#notification-endpoints)
 - [Authentication Endpoints](#authentication-endpoints)
 
@@ -167,6 +169,134 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 curl -H "X-API-Key: YOUR_API_KEY" \
   https://api.example.com/550e8400-e29b-41d4-a716-446655440000/messages
 ```
+
+## Session Status Monitoring Endpoints
+
+These endpoints enable real-time monitoring of session status changes and message updates. They provide both Server-Sent Events (SSE) streaming and long-polling mechanisms for different use cases.
+
+### GET /sessions/status/stream
+
+Stream all session status changes via Server-Sent Events (SSE).
+
+**Permissions Required:** `session:read`
+
+**Description:**
+- Opens a Server-Sent Events stream that pushes a `SessionStatusEvent` whenever any session accessible to the authenticated user changes status
+- A heartbeat comment (`: heartbeat`) is sent every 30 seconds to keep the connection alive
+- The stream stays open until the client disconnects
+
+**Response:**
+Server-Sent Events stream. Each event line:
+```
+data: {"session_id":"abc123","status":"active","timestamp":"2026-05-02T12:00:00Z"}
+
+```
+
+**Example:**
+```bash
+curl -N -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/status/stream
+```
+
+**Response Codes:**
+- `200`: SSE stream of SessionStatusEvent objects
+- `401`: Unauthorized
+- `501`: Not implemented for this session manager type
+
+### GET /sessions/status/wait
+
+Long-poll for next session status change.
+
+**Permissions Required:** `session:read`
+
+**Description:**
+Blocks until any session accessible to the authenticated user changes status, or until the timeout expires. Returns a `SessionStatusEvent` on change, or `{"events": []}` on timeout.
+
+**Query Parameters:**
+- `timeout`: Maximum wait time in seconds (default: 30, max: 60)
+
+**Response:**
+```json
+{
+  "session_id": "abc123",
+  "status": "active",
+  "timestamp": "2026-05-02T12:00:00Z"
+}
+```
+
+Or on timeout:
+```json
+{
+  "events": []
+}
+```
+
+**Example:**
+```bash
+# Wait up to 30 seconds for status change
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/sessions/status/wait?timeout=30"
+```
+
+**Response Codes:**
+- `200`: SessionStatusEvent or empty events array
+- `401`: Unauthorized
+- `501`: Not implemented for this session manager type
+
+### GET /sessions/:sessionId/messages/wait
+
+Long-poll for message updates in a specific session.
+
+**Permissions Required:** `session:access`
+
+**Description:**
+Blocks until a `message_update` event is received from the agentapi backend for the specified session, or until the timeout expires. Returns `{"updated": true, "session_id": "...", "timestamp": "..."}` on update, or `{"updated": false}` on timeout. Clients should immediately re-issue the request after each response to maintain continuous notification.
+
+**Path Parameters:**
+- `sessionId` (required): Session ID
+
+**Query Parameters:**
+- `timeout`: Maximum wait time in seconds (default: 30, max: 60)
+- `since`: Timestamp of the last known message update. If the session has received a message_update after this time, the response is returned immediately without waiting. Accepts Unix timestamp in milliseconds (integer) or RFC3339 string. Use the `timestamp` value from the previous response.
+
+**Response:**
+
+Message update received:
+```json
+{
+  "updated": true,
+  "session_id": "abc123",
+  "timestamp": "2026-05-02T12:00:00Z"
+}
+```
+
+Timeout elapsed with no update:
+```json
+{
+  "updated": false
+}
+```
+
+**Example:**
+```bash
+# Wait for message updates
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/sessions/abc123/messages/wait?timeout=30"
+
+# Wait with since parameter for catch-up
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/sessions/abc123/messages/wait?timeout=30&since=2026-05-02T11:00:00Z"
+```
+
+**Response Codes:**
+- `200`: Message update status
+- `401`: Unauthorized
+- `403`: Forbidden - can only access own sessions
+- `404`: Session not found
+- `501`: Not implemented for this session manager type
+
+**Access Control:**
+- Users can only monitor their own sessions
 
 ## Session Sharing Endpoints
 
@@ -2383,6 +2513,343 @@ curl -X POST https://api.example.com/notifications/send \
     "body": "Please check your tasks"
   }'
 ```
+
+## Settings Sync (GitHub) Endpoints
+
+These endpoints enable synchronization of agentapi-proxy resources (schedules, webhooks, slackbots, memories, tasks, task groups) with a GitHub repository. Settings are serialized as YAML files and can be version-controlled, enabling GitOps workflows.
+
+### GET /sync/config/:name
+
+Get GitHub sync configuration for a settings tenant.
+
+**Permissions Required:** `session:read`
+
+**Path Parameters:**
+- `name` (required): Settings name (user ID or team name in `org/team-slug` format)
+
+**Response:**
+```json
+{
+  "name": "alice",
+  "enabled": true,
+  "repo_owner": "myorg",
+  "repo_name": "agentapi-settings",
+  "branch": "main",
+  "base_path": "users/alice",
+  "github_token_secret_name": "github-tokens",
+  "github_token_secret_key": "alice-token",
+  "last_pushed_at": "2026-05-02T12:00:00Z",
+  "encryption_key_secret_name": "sync-keys",
+  "encryption_key_secret_key": "alice-key",
+  "created_at": "2026-05-01T00:00:00Z",
+  "updated_at": "2026-05-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sync/config/alice
+```
+
+**Access Control:**
+- Users can access their own sync config
+- Team members can access team sync config
+
+### PUT /sync/config/:name
+
+Create or update GitHub sync configuration.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `name` (required): Settings name
+
+**Request Body:**
+```json
+{
+  "enabled": true,
+  "repo_owner": "myorg",
+  "repo_name": "agentapi-settings",
+  "branch": "main",
+  "base_path": "users/alice",
+  "github_token": "ghp_xxxxx",
+  "encryption_key": "base64-encoded-32-byte-key"
+}
+```
+
+**Fields:**
+- `enabled`: Enable/disable sync (default: true)
+- `repo_owner` (required): GitHub repository owner
+- `repo_name` (required): GitHub repository name
+- `branch`: Target branch (default: "main")
+- `base_path`: Base path within the repository (default: "users/{name}" or "teams/{name}")
+- `github_token` (required for first setup): GitHub personal access token with repo write permissions
+- `encryption_key` (optional): Custom encryption key (auto-generated if not provided)
+
+**Response:**
+```json
+{
+  "name": "alice",
+  "enabled": true,
+  "repo_owner": "myorg",
+  "repo_name": "agentapi-settings",
+  "branch": "main",
+  "base_path": "users/alice",
+  "created_at": "2026-05-01T00:00:00Z",
+  "updated_at": "2026-05-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/sync/config/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "repo_owner": "myorg",
+    "repo_name": "agentapi-settings",
+    "branch": "main",
+    "github_token": "ghp_xxxxx"
+  }'
+```
+
+**Access Control:**
+- Users can update their own sync config
+- Team admins/maintainers can update team sync config
+
+### DELETE /sync/config/:name
+
+Delete GitHub sync configuration.
+
+**Permissions Required:** `session:delete`
+
+**Path Parameters:**
+- `name` (required): Settings name
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/sync/config/alice \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+### POST /sync/push/:name
+
+Push resources (schedules, webhooks, slackbots, memories, tasks, task groups) to GitHub.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `name` (required): Settings name
+
+**Request Body:**
+```json
+{
+  "commit_message": "Update agentapi settings",
+  "resources": ["schedules", "webhooks", "memories"]
+}
+```
+
+**Fields:**
+- `commit_message`: Custom commit message (optional)
+- `resources`: Array of resource types to push (optional, defaults to all). Valid values: `schedules`, `webhooks`, `slackbots`, `memories`, `tasks`, `task_groups`
+
+**Response:**
+```json
+{
+  "success": true,
+  "commit_sha": "abc123def456",
+  "files_changed": 5,
+  "message": "Pushed 5 resources to GitHub"
+}
+```
+
+**Example:**
+```bash
+# Push all resources
+curl -X POST https://api.example.com/sync/push/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "commit_message": "Update settings"
+  }'
+
+# Push specific resources
+curl -X POST https://api.example.com/sync/push/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resources": ["schedules", "webhooks"]
+  }'
+```
+
+**Notes:**
+- Push is idempotent: no commit is created when file contents are unchanged
+- Sensitive data (tokens, secrets) is encrypted before pushing
+
+### POST /sync/pull/:name
+
+Pull resources from GitHub and apply them locally.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `name` (required): Settings name
+
+**Request Body:**
+```json
+{
+  "delete_orphans": true,
+  "resources": ["schedules", "webhooks"]
+}
+```
+
+**Fields:**
+- `delete_orphans`: Remove local resources that no longer exist in GitHub (default: false)
+- `resources`: Array of resource types to pull (optional, defaults to all)
+
+**Response:**
+```json
+{
+  "success": true,
+  "resources_updated": 3,
+  "resources_deleted": 1,
+  "message": "Pulled resources from GitHub"
+}
+```
+
+**Example:**
+```bash
+# Pull all resources
+curl -X POST https://api.example.com/sync/pull/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "delete_orphans": true
+  }'
+
+# Pull specific resources
+curl -X POST https://api.example.com/sync/pull/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resources": ["schedules"],
+    "delete_orphans": false
+  }'
+```
+
+**Notes:**
+- Encrypted data is decrypted during pull
+- Local changes will be overwritten by GitHub state
+
+### POST /sync/rotate-key/:name
+
+Rotate the encryption key used for syncing sensitive data.
+
+**Permissions Required:** `session:create`
+
+**Path Parameters:**
+- `name` (required): Settings name
+
+**Request Body:**
+```json
+{
+  "new_key": "base64-encoded-32-byte-key"
+}
+```
+
+**Fields:**
+- `new_key` (optional): New encryption key (auto-generated if not provided)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Encryption key rotated successfully"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/sync/rotate-key/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**Notes:**
+- After rotation, you should push resources again to re-encrypt with the new key
+- Old encrypted data will be re-encrypted with the new key
+
+### POST /sync/all
+
+Sync all tenants with their configured GitHub repositories.
+
+**Permissions Required:** Admin only
+
+**Description:**
+Syncs GitHub for every settings tenant that has sync enabled. The direction (push/pull) is determined automatically per tenant by comparing the remote `.sync-meta.yaml` `syncedAt` timestamp against the local `LastPushedAt`: if GitHub is newer the tenant is pulled, otherwise pushed.
+
+**Request Body:**
+```json
+{
+  "delete_orphans": true,
+  "commit_message": "Automated sync"
+}
+```
+
+**Fields:**
+- `delete_orphans`: Remove local resources that no longer exist in GitHub (applies when pull is selected for a tenant)
+- `commit_message`: Override the default commit message when push is selected for a tenant
+
+**Response:**
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "name": "alice",
+      "action": "push",
+      "success": true,
+      "commit_sha": "abc123",
+      "files_changed": 3
+    },
+    {
+      "name": "myorg/backend",
+      "action": "pull",
+      "success": true,
+      "resources_updated": 2
+    }
+  ],
+  "total": 2,
+  "succeeded": 2,
+  "failed": 0
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/sync/all \
+  -H "X-API-Key: YOUR_ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "delete_orphans": true,
+    "commit_message": "Daily automated sync"
+  }'
+```
+
+**Notes:**
+- Only accessible by admin users
+- Individual tenant errors are captured in `results[].error`
+- Push is idempotent: no commit is created when file contents are unchanged
 
 ## Authentication Endpoints
 
