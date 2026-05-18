@@ -132,6 +132,141 @@ curl -X DELETE https://api.example.com/sessions/550e8400-e29b-41d4-a716-44665544
   -H "X-API-Key: ap_user_alice_987654321fedcba"
 ```
 
+### GET /sessions/status/stream
+
+Stream all session status changes via Server-Sent Events (SSE).
+
+**Permissions Required:** `session:list`
+
+**Description:**
+Opens a Server-Sent Events stream that pushes a `SessionStatusEvent` whenever any session accessible to the authenticated user changes status. A heartbeat comment (`: heartbeat`) is sent every 30 seconds to keep the connection alive. The stream stays open until the client disconnects.
+
+**Response:**
+```
+data: {"session_id":"abc123","status":"active","timestamp":"2026-05-02T12:00:00Z"}
+
+data: {"session_id":"def456","status":"completed","timestamp":"2026-05-02T12:05:30Z"}
+
+: heartbeat
+```
+
+**Response Codes:**
+- `200`: SSE stream of SessionStatusEvent objects
+- `401`: Unauthorized
+- `501`: Not implemented for this session manager type
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  -H "Accept: text/event-stream" \
+  https://api.example.com/sessions/status/stream
+```
+
+**Use Cases:**
+- Real-time monitoring of session status changes across all sessions
+- Building dashboards that show live session activity
+- Triggering actions when sessions start, stop, or change status
+
+### GET /sessions/status/wait
+
+Long-poll for the next session status change.
+
+**Permissions Required:** `session:list`
+
+**Query Parameters:**
+- `timeout`: Maximum wait time in seconds (default: 30, max: 60)
+
+**Description:**
+Blocks until any session accessible to the authenticated user changes status, or until the timeout expires. Returns a `SessionStatusEvent` on change, or `{"events": []}` on timeout.
+
+**Response (on status change):**
+```json
+{
+  "session_id": "abc123",
+  "status": "active",
+  "timestamp": "2026-05-02T12:00:00Z"
+}
+```
+
+**Response (on timeout):**
+```json
+{
+  "events": []
+}
+```
+
+**Response Codes:**
+- `200`: A status change occurred or timeout elapsed
+- `401`: Unauthorized
+- `501`: Not implemented for this session manager type
+
+**Example:**
+```bash
+# Wait up to 30 seconds for a status change
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/sessions/status/wait?timeout=30"
+```
+
+**Use Cases:**
+- Implementing efficient polling for session status changes
+- Building notification systems that react to session events
+- Alternative to SSE for environments that don't support long-lived connections
+
+### GET /sessions/:sessionId/messages/wait
+
+Long-poll for message updates in a specific session.
+
+**Permissions Required:** `session:access`
+
+**Path Parameters:**
+- `sessionId` (required): Session ID
+
+**Query Parameters:**
+- `timeout`: Maximum wait time in seconds (default: 30, max: 60)
+- `since`: Timestamp of the last known message update. If the session has received a message_update after this time, the response is returned immediately without waiting. Accepts Unix timestamp in milliseconds (integer) or RFC3339 string. Use the `timestamp` value from the previous response.
+
+**Description:**
+Blocks until a `message_update` event is received from the agentapi backend for the specified session, or until the timeout expires. Returns `{"updated": true, "session_id": "...", "timestamp": "..."}` on update, or `{"updated": false}` on timeout. Clients should immediately re-issue the request after each response to maintain continuous notification.
+
+**Response (on message update):**
+```json
+{
+  "updated": true,
+  "session_id": "abc123",
+  "timestamp": "2026-05-02T12:00:00Z"
+}
+```
+
+**Response (on timeout):**
+```json
+{
+  "updated": false
+}
+```
+
+**Response Codes:**
+- `200`: A message update occurred, a catch-up update was detected via `since`, or the timeout elapsed
+- `401`: Unauthorized
+- `403`: Forbidden - can only access own sessions
+- `404`: Session not found
+- `501`: Not implemented for this session manager type
+
+**Examples:**
+```bash
+# Wait for next message update
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/sessions/abc123/messages/wait?timeout=30"
+
+# Wait for updates since a specific timestamp
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/sessions/abc123/messages/wait?timeout=30&since=2026-05-02T12:00:00Z"
+```
+
+**Use Cases:**
+- Building real-time chat interfaces that show new messages as they arrive
+- Implementing efficient polling for conversation updates
+- Reducing unnecessary API calls by waiting for actual updates
+
 ### GET/POST /:sessionId/:path
 
 Proxy requests to the agentapi instance for the specified session.
