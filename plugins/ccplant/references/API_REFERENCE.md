@@ -12,6 +12,7 @@
 - [Memory Management Endpoints](#memory-management-endpoints)
 - [SlackBot Management Endpoints](#slackbot-management-endpoints)
 - [Files Management Endpoints](#files-management-endpoints)
+- [Session Profile Management Endpoints](#session-profile-management-endpoints)
 - [Credentials Management Endpoints](#credentials-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
 - [Settings Sync (GitHub) Endpoints](#settings-sync-github-endpoints)
@@ -37,11 +38,24 @@ Create a new agentapi session.
     "repository": "agentapi-proxy",
     "branch": "main",
     "env": "production"
+  },
+  "scope": "user",
+  "team_id": "optional-team-id",
+  "memory_key": {
+    "project": "myapp",
+    "env": "production"
   }
 }
 ```
 
 **Note:** `user_id` is automatically assigned from the authenticated user's token.
+
+**Fields:**
+- `environment`: Environment variables for the session
+- `tags`: Tags for session filtering and memory key matching
+- `scope`: Ownership scope (`user` (default) or `team`)
+- `team_id`: Team identifier (e.g., `org/team-slug`) when `scope` is `team`
+- `memory_key`: Custom tag map to identify memories for this session. If not specified, session tags are used. If both are empty, memory integration is disabled.
 
 **Response:**
 ```json
@@ -2016,6 +2030,183 @@ curl -X DELETE https://api.example.com/files/file-abc123 \
 - Common use cases: SSH keys, configuration files, API tokens
 - File paths should be absolute and within the agent's home directory
 
+## Session Profile Management Endpoints
+
+Session profiles are named, reusable session configurations that can be shared across users or teams.
+
+### POST /session-profiles
+
+Create a new session profile.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "My Profile",
+  "scope": "user",
+  "team_id": "optional-team-id",
+  "session_config": {
+    "tags": {
+      "repository": "org/repo"
+    },
+    "params": {
+      "message": "Initial message template"
+    },
+    "environment": {
+      "CUSTOM_VAR": "value"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "profile-abc123",
+  "name": "My Profile",
+  "scope": "user",
+  "owner_id": "alice",
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/session-profiles \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "PR Reviewer",
+    "scope": "user",
+    "session_config": {
+      "tags": {"repository": "org/repo"},
+      "params": {"message": "Review PRs"}
+    }
+  }'
+```
+
+### GET /session-profiles
+
+List session profiles accessible to the authenticated user.
+
+**Permissions Required:** `session:list`
+
+**Query Parameters:**
+- `scope`: Filter by resource scope (`user`, `team`)
+- `team_id`: Filter by team ID
+
+**Response:**
+```json
+{
+  "session_profiles": [
+    {
+      "id": "profile-abc123",
+      "name": "My Profile",
+      "scope": "user",
+      "owner_id": "alice",
+      "created_at": "2024-01-01T12:00:00Z",
+      "updated_at": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
+**Example:**
+```bash
+# List all session profiles
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/session-profiles
+
+# Filter by scope
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/session-profiles?scope=team&team_id=myorg/backend"
+```
+
+### GET /session-profiles/:id
+
+Get a specific session profile by ID.
+
+**Permissions Required:** `session:read`
+
+**Response:**
+```json
+{
+  "id": "profile-abc123",
+  "name": "My Profile",
+  "scope": "user",
+  "owner_id": "alice",
+  "session_config": {
+    "tags": {"repository": "org/repo"},
+    "params": {"message": "Review PRs"}
+  },
+  "created_at": "2024-01-01T12:00:00Z",
+  "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/session-profiles/profile-abc123
+```
+
+**Response Codes:**
+- `200`: Session profile details
+- `403`: Forbidden
+- `404`: Session profile not found
+
+### PUT /session-profiles/:id
+
+Update an existing session profile.
+
+**Permissions Required:** `session:create`
+
+**Request Body:**
+```json
+{
+  "name": "Updated Profile Name",
+  "session_config": {
+    "tags": {"repository": "org/new-repo"}
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "profile-abc123",
+  "name": "Updated Profile Name",
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/session-profiles/profile-abc123 \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Profile Name"}'
+```
+
+### DELETE /session-profiles/:id
+
+Delete a session profile by ID.
+
+**Permissions Required:** `session:delete`
+
+**Response Codes:**
+- `204`: Session profile deleted successfully
+- `403`: Forbidden
+- `404`: Session profile not found
+
+**Example:**
+```bash
+curl -X DELETE https://api.example.com/session-profiles/profile-abc123 \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
 ## Credentials Management Endpoints
 
 The Credentials endpoints allow users to securely upload, manage, and delete authentication credentials (e.g., `auth.json` for Claude Code OAuth tokens). Credentials are stored securely in Kubernetes secrets and are accessible in agent sessions.
@@ -2177,6 +2368,14 @@ Get settings for a user or team. Settings include Bedrock configuration, MCP ser
   "auth_mode": "oauth",
   "preferred_team_id": "myorg/backend",
   "slack_user_id": "U1234567890",
+  "git_sync": {
+    "enabled": true,
+    "repo_full_name": "myorg/agentapi-settings",
+    "branch": "main",
+    "root_path": "agentapi-config/",
+    "auto_push": false,
+    "has_github_token": true
+  },
   "created_at": "2025-01-01T00:00:00Z",
   "updated_at": "2025-01-02T00:00:00Z"
 }
@@ -2201,6 +2400,7 @@ Get settings for a user or team. Settings include Bedrock configuration, MCP ser
 - `auth_mode`: Authentication mode (`oauth`, `bedrock`, or empty)
 - `preferred_team_id`: Team whose settings to use exclusively (empty = merge all teams)
 - `slack_user_id`: Slack user ID for DM notifications
+- `git_sync`: GitHub sync configuration (token redacted; `null` if not configured)
 
 **Example:**
 ```bash
@@ -2266,7 +2466,15 @@ Create or update settings for a user or team. All fields are optional - omitted 
   "claude_code_oauth_token": "sk-ant-...",
   "auth_mode": "oauth",
   "preferred_team_id": "myorg/backend",
-  "slack_user_id": "U1234567890"
+  "slack_user_id": "U1234567890",
+  "git_sync": {
+    "enabled": true,
+    "repo_full_name": "myorg/agentapi-settings",
+    "branch": "main",
+    "root_path": "agentapi-config/",
+    "auto_push": false,
+    "github_token": "ghp_xxxxx"
+  }
 }
 ```
 
@@ -2281,6 +2489,7 @@ Create or update settings for a user or team. All fields are optional - omitted 
 - `auth_mode`: Preferred authentication mode
 - `preferred_team_id`: Team to use exclusively (empty string = merge all teams)
 - `slack_user_id`: Slack user ID for notifications (empty string removes it)
+- `git_sync`: GitHub sync configuration. If omitted, existing sync configuration is preserved.
 
 **Example:**
 ```bash
@@ -2518,130 +2727,76 @@ curl -X POST https://api.example.com/notifications/send \
 
 These endpoints enable synchronization of agentapi-proxy resources (schedules, webhooks, slackbots, memories, tasks, task groups) with a GitHub repository. Settings are serialized as YAML files and can be version-controlled, enabling GitOps workflows.
 
-### GET /sync/config/:name
+> **Note:** The GitHub sync configuration is now managed as part of the settings endpoints (`GET /settings/{name}` and `PUT /settings/{name}`) via the `git_sync` field. The dedicated `/sync/config/{name}` endpoints have been removed.
 
-Get GitHub sync configuration for a settings tenant.
+### Configuring GitHub Sync via Settings
 
-**Permissions Required:** `session:read`
+To set up GitHub sync, include a `git_sync` field when updating settings:
+
+**PUT /settings/:name** with sync configuration:
+```json
+{
+  "git_sync": {
+    "enabled": true,
+    "repo_full_name": "myorg/agentapi-settings",
+    "branch": "main",
+    "root_path": "agentapi-config/",
+    "auto_push": true,
+    "github_token": "ghp_xxxxx"
+  }
+}
+```
+
+**GET /settings/:name** returns sync configuration in the `git_sync` field:
+```json
+{
+  "git_sync": {
+    "enabled": true,
+    "repo_full_name": "myorg/agentapi-settings",
+    "branch": "main",
+    "root_path": "agentapi-config/",
+    "auto_push": true,
+    "has_github_token": true,
+    "encryption": {
+      "kms_key_id": "..."
+    }
+  }
+}
+```
+
+**GitSyncConfig fields (request):**
+- `enabled`: Enable/disable sync (default: true)
+- `repo_full_name` (required): GitHub repository in `owner/repo` format
+- `branch`: Target branch (default: `main`)
+- `root_path`: Base path within the repository (default: `agentapi-config/`)
+- `auto_push`: Automatically push on resource changes
+- `github_token`: GitHub personal access token with repo write permissions (write-only; preserved if omitted)
+
+> **Note:** Encryption is configured at the proxy level (AWS KMS). Per-user encryption keys are no longer supported.
+
+### DELETE /settings/:name/sync
+
+Delete GitHub sync configuration for a settings tenant.
+
+**Permissions Required:** `session:create`
 
 **Path Parameters:**
 - `name` (required): Settings name (user ID or team name in `org/team-slug` format)
 
 **Response:**
-```json
-{
-  "name": "alice",
-  "enabled": true,
-  "repo_owner": "myorg",
-  "repo_name": "agentapi-settings",
-  "branch": "main",
-  "base_path": "users/alice",
-  "github_token_secret_name": "github-tokens",
-  "github_token_secret_key": "alice-token",
-  "last_pushed_at": "2026-05-02T12:00:00Z",
-  "encryption_key_secret_name": "sync-keys",
-  "encryption_key_secret_key": "alice-key",
-  "created_at": "2026-05-01T00:00:00Z",
-  "updated_at": "2026-05-02T12:00:00Z"
-}
-```
+- `200`: Deleted successfully
 
 **Example:**
 ```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/sync/config/alice
-```
-
-**Access Control:**
-- Users can access their own sync config
-- Team members can access team sync config
-
-### PUT /sync/config/:name
-
-Create or update GitHub sync configuration.
-
-**Permissions Required:** `session:create`
-
-**Path Parameters:**
-- `name` (required): Settings name
-
-**Request Body:**
-```json
-{
-  "enabled": true,
-  "repo_owner": "myorg",
-  "repo_name": "agentapi-settings",
-  "branch": "main",
-  "base_path": "users/alice",
-  "github_token": "ghp_xxxxx",
-  "encryption_key": "base64-encoded-32-byte-key"
-}
-```
-
-**Fields:**
-- `enabled`: Enable/disable sync (default: true)
-- `repo_owner` (required): GitHub repository owner
-- `repo_name` (required): GitHub repository name
-- `branch`: Target branch (default: "main")
-- `base_path`: Base path within the repository (default: "users/{name}" or "teams/{name}")
-- `github_token` (required for first setup): GitHub personal access token with repo write permissions
-- `encryption_key` (optional): Custom encryption key (auto-generated if not provided)
-
-**Response:**
-```json
-{
-  "name": "alice",
-  "enabled": true,
-  "repo_owner": "myorg",
-  "repo_name": "agentapi-settings",
-  "branch": "main",
-  "base_path": "users/alice",
-  "created_at": "2026-05-01T00:00:00Z",
-  "updated_at": "2026-05-02T12:00:00Z"
-}
-```
-
-**Example:**
-```bash
-curl -X PUT https://api.example.com/sync/config/alice \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "enabled": true,
-    "repo_owner": "myorg",
-    "repo_name": "agentapi-settings",
-    "branch": "main",
-    "github_token": "ghp_xxxxx"
-  }'
-```
-
-**Access Control:**
-- Users can update their own sync config
-- Team admins/maintainers can update team sync config
-
-### DELETE /sync/config/:name
-
-Delete GitHub sync configuration.
-
-**Permissions Required:** `session:delete`
-
-**Path Parameters:**
-- `name` (required): Settings name
-
-**Response:**
-```json
-{
-  "success": true
-}
-```
-
-**Example:**
-```bash
-curl -X DELETE https://api.example.com/sync/config/alice \
+curl -X DELETE https://api.example.com/settings/alice/sync \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
-### POST /sync/push/:name
+**Access Control:**
+- Users can delete their own sync config
+- Team members can delete team sync config
+
+### POST /settings/:name/sync/push
 
 Push resources (schedules, webhooks, slackbots, memories, tasks, task groups) to GitHub.
 
@@ -2653,14 +2808,12 @@ Push resources (schedules, webhooks, slackbots, memories, tasks, task groups) to
 **Request Body:**
 ```json
 {
-  "commit_message": "Update agentapi settings",
-  "resources": ["schedules", "webhooks", "memories"]
+  "commit_message": "Update agentapi settings"
 }
 ```
 
 **Fields:**
 - `commit_message`: Custom commit message (optional)
-- `resources`: Array of resource types to push (optional, defaults to all). Valid values: `schedules`, `webhooks`, `slackbots`, `memories`, `tasks`, `task_groups`
 
 **Response:**
 ```json
@@ -2674,28 +2827,17 @@ Push resources (schedules, webhooks, slackbots, memories, tasks, task groups) to
 
 **Example:**
 ```bash
-# Push all resources
-curl -X POST https://api.example.com/sync/push/alice \
+curl -X POST https://api.example.com/settings/alice/sync/push \
   -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "commit_message": "Update settings"
-  }'
-
-# Push specific resources
-curl -X POST https://api.example.com/sync/push/alice \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "resources": ["schedules", "webhooks"]
-  }'
+  -d '{"commit_message": "Update settings"}'
 ```
 
 **Notes:**
 - Push is idempotent: no commit is created when file contents are unchanged
 - Sensitive data (tokens, secrets) is encrypted before pushing
 
-### POST /sync/pull/:name
+### POST /settings/:name/sync/pull
 
 Pull resources from GitHub and apply them locally.
 
@@ -2707,14 +2849,12 @@ Pull resources from GitHub and apply them locally.
 **Request Body:**
 ```json
 {
-  "delete_orphans": true,
-  "resources": ["schedules", "webhooks"]
+  "delete_orphans": true
 }
 ```
 
 **Fields:**
 - `delete_orphans`: Remove local resources that no longer exist in GitHub (default: false)
-- `resources`: Array of resource types to pull (optional, defaults to all)
 
 **Response:**
 ```json
@@ -2728,29 +2868,17 @@ Pull resources from GitHub and apply them locally.
 
 **Example:**
 ```bash
-# Pull all resources
-curl -X POST https://api.example.com/sync/pull/alice \
+curl -X POST https://api.example.com/settings/alice/sync/pull \
   -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "delete_orphans": true
-  }'
-
-# Pull specific resources
-curl -X POST https://api.example.com/sync/pull/alice \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "resources": ["schedules"],
-    "delete_orphans": false
-  }'
+  -d '{"delete_orphans": true}'
 ```
 
 **Notes:**
 - Encrypted data is decrypted during pull
 - Local changes will be overwritten by GitHub state
 
-### POST /sync/rotate-key/:name
+### POST /settings/:name/sync/rotate-key
 
 Rotate the encryption key used for syncing sensitive data.
 
@@ -2758,16 +2886,6 @@ Rotate the encryption key used for syncing sensitive data.
 
 **Path Parameters:**
 - `name` (required): Settings name
-
-**Request Body:**
-```json
-{
-  "new_key": "base64-encoded-32-byte-key"
-}
-```
-
-**Fields:**
-- `new_key` (optional): New encryption key (auto-generated if not provided)
 
 **Response:**
 ```json
@@ -2779,17 +2897,15 @@ Rotate the encryption key used for syncing sensitive data.
 
 **Example:**
 ```bash
-curl -X POST https://api.example.com/sync/rotate-key/alice \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{}'
+curl -X POST https://api.example.com/settings/alice/sync/rotate-key \
+  -H "X-API-Key: YOUR_API_KEY"
 ```
 
 **Notes:**
-- After rotation, you should push resources again to re-encrypt with the new key
-- Old encrypted data will be re-encrypted with the new key
+- Generates a new DEK via AWS KMS and re-encrypts all repository values atomically
+- After rotation, resources in GitHub are re-encrypted with the new key
 
-### POST /sync/all
+### POST /settings/sync/all
 
 Sync all tenants with their configured GitHub repositories.
 
@@ -2837,7 +2953,7 @@ Syncs GitHub for every settings tenant that has sync enabled. The direction (pus
 
 **Example:**
 ```bash
-curl -X POST https://api.example.com/sync/all \
+curl -X POST https://api.example.com/settings/sync/all \
   -H "X-API-Key: YOUR_ADMIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{

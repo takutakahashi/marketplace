@@ -7,7 +7,8 @@ description: |
   (6) Access user settings and notifications, (7) Create and manage tasks associated with sessions,
   (8) Manage task groups for organizing tasks, (9) Create and manage memory entries for storing
   contextual information, (10) Manage credentials for authentication (e.g., Claude Code OAuth tokens),
-  (11) Manage files (e.g., SSH keys) that are placed in agent sessions at startup.
+  (11) Manage files (e.g., SSH keys) that are placed in agent sessions at startup,
+  (12) Create and manage session profiles (named, reusable session configurations).
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
@@ -38,7 +39,7 @@ This skill provides guidance for interacting with the agentapi-proxy API.
 | `send-notification` | プッシュ通知の送信 | - |
 | `summarize-drafts` | ドラフトメモリの要約 | - |
 
-> **Note:** タスクグループ (`task-group`) は CLI 未対応です。MCP ツールを使用してください。
+> **Note:** タスクグループ (`task-group`) とセッションプロファイル (`session-profile`) は CLI 未対応です。API を直接使用してください。
 
 ### 接続設定
 
@@ -276,6 +277,47 @@ curl -X DELETE https://api.example.com/files/FILE_ID \
 
 Files are automatically mounted at the specified path in agent sessions. The provisioner writes files with mode `0600` by default for security.
 
+### Managing Session Profiles
+
+Session profiles are named, reusable session configurations that can be shared across users or teams.
+
+> **Note:** Session profile management is not yet available via CLI. Use the API directly:
+
+```bash
+# Create a session profile
+curl -X POST https://api.example.com/session-profiles \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "PR Reviewer",
+    "scope": "user",
+    "session_config": {
+      "tags": {"repository": "org/repo"},
+      "params": {"message": "Review open PRs"}
+    }
+  }'
+
+# List session profiles
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/session-profiles
+
+# Get a specific session profile
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/session-profiles/PROFILE_ID
+
+# Update a session profile
+curl -X PUT https://api.example.com/session-profiles/PROFILE_ID \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Profile Name"}'
+
+# Delete a session profile
+curl -X DELETE https://api.example.com/session-profiles/PROFILE_ID \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+See [API_REFERENCE.md](references/API_REFERENCE.md#session-profile-management-endpoints) for complete details.
+
 ### Managing Credentials
 
 Credentials (e.g., Claude Code OAuth tokens) can be uploaded and managed via the API. These credentials are securely stored and automatically mounted in agent sessions.
@@ -338,7 +380,24 @@ curl -X PUT https://api.example.com/settings/alice \
     },
     "enabled_plugins": ["commit@claude-plugins-official"]
   }'
+
+# Configure GitHub sync
+curl -X PUT https://api.example.com/settings/alice \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "git_sync": {
+      "enabled": true,
+      "repo_full_name": "myorg/agentapi-settings",
+      "branch": "main",
+      "root_path": "agentapi-config/",
+      "auto_push": false,
+      "github_token": "ghp_xxxxx"
+    }
+  }'
 ```
+
+GitHub sync configuration (`git_sync`) is embedded in settings GET/PUT. Use `DELETE /settings/{name}/sync` to remove it, and `POST /settings/{name}/sync/push|pull|rotate-key` for sync operations.
 
 See [API_REFERENCE.md](references/API_REFERENCE.md#credentials-management-endpoints) and [API_REFERENCE.md](references/API_REFERENCE.md#user--settings-endpoints) for complete details.
 
