@@ -7,7 +7,11 @@ description: |
   (6) Access user settings and notifications, (7) Create and manage tasks associated with sessions,
   (8) Manage task groups for organizing tasks, (9) Create and manage memory entries for storing
   contextual information, (10) Manage credentials for authentication (e.g., Claude Code OAuth tokens),
-  (11) Manage files (e.g., SSH keys) that are placed in agent sessions at startup.
+  (11) Manage files (e.g., SSH keys) that are placed in agent sessions at startup,
+  (12) Create and manage session profiles (reusable session configurations),
+  (13) Create and manage sandbox policies (network filter rule sets for sessions),
+  (14) Manage Codex device authentication flow,
+  (15) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
