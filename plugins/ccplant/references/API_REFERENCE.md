@@ -1461,7 +1461,11 @@ Create a new memory entry.
   "title": "Project conventions",
   "content": "Always use TypeScript for new files. Follow ESLint rules.",
   "scope": "user",
-  "team_id": "optional-team-id"
+  "team_id": "optional-team-id",
+  "tags": {
+    "category": "coding-standards",
+    "language": "typescript"
+  }
 }
 ```
 
@@ -1470,6 +1474,7 @@ Create a new memory entry.
 - `content` (required): Memory content
 - `scope`: `user` (default) or `team`
 - `team_id`: Required when `scope` is `team`
+- `tags`: Key-value tags for filtering and organizing memories (optional)
 
 **Response:**
 ```json
@@ -1479,6 +1484,10 @@ Create a new memory entry.
   "content": "Always use TypeScript for new files. Follow ESLint rules.",
   "scope": "user",
   "owner_id": "alice",
+  "tags": {
+    "category": "coding-standards",
+    "language": "typescript"
+  },
   "created_at": "2024-01-01T12:00:00Z",
   "updated_at": "2024-01-01T12:00:00Z"
 }
@@ -1492,7 +1501,11 @@ curl -X POST https://api.example.com/memories \
   -d '{
     "title": "Project conventions",
     "content": "Always use TypeScript for new files.",
-    "scope": "user"
+    "scope": "user",
+    "tags": {
+      "category": "coding-standards",
+      "language": "typescript"
+    }
   }'
 ```
 
@@ -1506,6 +1519,8 @@ List memory entries accessible to the authenticated user.
 - `scope`: Filter by scope (`user`, `team`)
 - `team_id`: Filter by team ID (required when scope=team)
 - `q`: Full-text search query (searches title and content, case-insensitive)
+- `include_tag.{key}`: Include only memories whose tags contain ALL of the specified key=value pairs (multiple include_tag parameters are AND-combined)
+- `exclude_tag.{key}`: Exclude memories whose tags contain ALL of the specified key=value pairs (multiple exclude_tag parameters are AND-combined)
 
 **Response:**
 ```json
@@ -1517,6 +1532,10 @@ List memory entries accessible to the authenticated user.
       "content": "Always use TypeScript for new files.",
       "scope": "user",
       "owner_id": "alice",
+      "tags": {
+        "category": "coding-standards",
+        "language": "typescript"
+      },
       "created_at": "2024-01-01T12:00:00Z",
       "updated_at": "2024-01-01T12:00:00Z"
     }
@@ -1538,6 +1557,14 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 # Filter by team
 curl -H "X-API-Key: YOUR_API_KEY" \
   "https://api.example.com/memories?scope=team&team_id=myorg/team-slug"
+
+# Filter by tags (include)
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/memories?include_tag.category=coding-standards"
+
+# Filter by multiple tags (exclude)
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "https://api.example.com/memories?exclude_tag.language=javascript&exclude_tag.deprecated=true"
 ```
 
 **Access Control:**
@@ -1559,6 +1586,10 @@ Get a specific memory entry by ID.
   "content": "Always use TypeScript for new files.",
   "scope": "user",
   "owner_id": "alice",
+  "tags": {
+    "category": "coding-standards",
+    "language": "typescript"
+  },
   "created_at": "2024-01-01T12:00:00Z",
   "updated_at": "2024-01-01T12:00:00Z"
 }
@@ -1585,7 +1616,11 @@ Update an existing memory entry.
 ```json
 {
   "title": "Updated conventions",
-  "content": "Updated content"
+  "content": "Updated content",
+  "tags": {
+    "category": "best-practices",
+    "reviewed": "true"
+  }
 }
 ```
 
@@ -1597,6 +1632,10 @@ Update an existing memory entry.
   "id": "mem-abc123",
   "title": "Updated conventions",
   "content": "Updated content",
+  "tags": {
+    "category": "best-practices",
+    "reviewed": "true"
+  },
   "updated_at": "2024-01-02T12:00:00Z"
 }
 ```
@@ -1606,7 +1645,13 @@ Update an existing memory entry.
 curl -X PUT https://api.example.com/memories/mem-abc123 \
   -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"title": "Updated conventions"}'
+  -d '{
+    "title": "Updated conventions",
+    "tags": {
+      "category": "best-practices",
+      "reviewed": "true"
+    }
+  }'
 ```
 
 **Access Control:**
