@@ -199,6 +199,42 @@ curl -H "X-API-Key: YOUR_API_KEY" \
   https://api.example.com/550e8400-e29b-41d4-a716-446655440000/messages
 ```
 
+### GET /sessions/:sessionId/sandbox-domains
+
+Get the list of domains accessed by a sandboxed session.
+
+**Permissions Required:** `session:access`
+
+**Path Parameters:**
+- `sessionId` (required): Session ID
+
+**Description:**
+- Returns the list of domains that the session's network filter proxy has seen, split into allowed (accessed) and denied (blocked) sets
+- Only available for Kubernetes sessions with a sandbox sidecar
+- Returns `503` when the network filter is not running
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.example.com"],
+  "denied": ["blocked.example.com"]
+}
+```
+
+**Response Codes:**
+- `200`: Domain lists from the network filter
+- `401`: Unauthorized
+- `403`: Forbidden - can only access own sessions
+- `404`: Session not found
+- `501`: Not implemented for this session type
+- `503`: Network filter not available for this session
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/550e8400-e29b-41d4-a716-446655440000/sandbox-domains
+```
+
 ## Session Status Monitoring Endpoints
 
 These endpoints enable real-time monitoring of session status changes and message updates. They provide both Server-Sent Events (SSE) streaming and long-polling mechanisms for different use cases.
@@ -3045,6 +3081,91 @@ Delete a sandbox policy by ID.
 ```bash
 curl -X DELETE https://api.example.com/sandbox-policies/policy-abc123 \
   -H "X-API-Key: YOUR_API_KEY"
+```
+
+### GET /sandbox-policies/:id/domains
+
+Get aggregated domain lists collected from all sessions using a sandbox policy.
+
+**Permissions Required:** `session:read`
+
+**Description:**
+- Returns the allowed/denied/ignored domain lists collected by the background domain collector from all sessions using this policy
+- Data is refreshed every 60 seconds
+- Returns empty lists when no data has been collected yet
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.example.com"],
+  "denied": ["blocked.example.com"],
+  "ignored": ["tracking.example.com"],
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Fields:**
+- `allowed`: Domains allowed through the filter
+- `denied`: Domains blocked by the filter
+- `ignored`: Domains the user has chosen to ignore (not shown as suggestions)
+- `updated_at`: When the data was last collected
+
+**Response Codes:**
+- `200`: Aggregated domain lists
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Sandbox policy not found
+- `501`: Domain collection not available
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/policy-abc123/domains
+```
+
+### PUT /sandbox-policies/:id/domains/ignored
+
+Update the ignored domain list for a sandbox policy.
+
+**Permissions Required:** `session:create`
+
+**Description:**
+Replaces the ignored domain list stored in the collected domain data for the given policy. Ignored domains are suppressed from the import suggestion UI so users are not repeatedly prompted to act on them.
+
+**Request Body:**
+```json
+{
+  "ignored": ["tracking.example.com", "ads.example.com"]
+}
+```
+
+**Fields:**
+- `ignored` (required): Full list of domains to ignore (replaces existing list)
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.example.com"],
+  "denied": ["blocked.example.com"],
+  "ignored": ["tracking.example.com", "ads.example.com"],
+  "updated_at": "2024-01-02T12:00:00Z"
+}
+```
+
+**Response Codes:**
+- `200`: Updated domain lists
+- `400`: Invalid request body
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Sandbox policy not found
+- `501`: Domain collection not available
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/sandbox-policies/policy-abc123/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["tracking.example.com"]}'
 ```
 
 **Using Sandbox in Sessions:**
