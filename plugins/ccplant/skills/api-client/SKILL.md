@@ -11,7 +11,8 @@ description: |
   (12) Create and manage session profiles (reusable session configurations),
   (13) Create and manage sandbox policies (network filter rule sets for sessions),
   (14) Manage Codex device authentication flow,
-  (15) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
+  (15) Upload HTML assets and get externally reachable asset URLs,
+  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
@@ -31,6 +32,7 @@ This skill provides guidance for interacting with the agentapi-proxy API.
 |-------------|------|------|
 | `task` | タスク管理 | create / list / get / update / delete |
 | `memory` | メモリ管理 | create / list / get / update / delete / upsert |
+| `asset` | HTML asset アップロード | create |
 | `schedule` | スケジュール管理 | create / list / get / apply / delete |
 | `webhook` | Webhook 管理 | create / list / get / apply / delete / regenerate-secret |
 | `slackbot` | SlackBot 管理 | create / list / get / apply / delete |
@@ -220,6 +222,34 @@ agentapi-proxy client summarize-drafts \
   --scope user \
   --key project=myapp
 ```
+
+### Uploading HTML Assets
+
+Use `agentapi-proxy client asset create` to upload HTML and receive an externally reachable URL. The server stores the HTML in the configured asset backend, usually nginx-backed storage by default or S3 when configured.
+
+**Upload from a file:**
+```bash
+agentapi-proxy client asset create \
+  --endpoint http://proxy:8080 \
+  --html-file ./index.html
+```
+
+**Upload from stdin:**
+```bash
+cat ./index.html | agentapi-proxy client asset create \
+  --endpoint http://proxy:8080 \
+  --html-file -
+```
+
+**Return JSON instead of only the URL:**
+```bash
+agentapi-proxy client asset create \
+  --endpoint http://proxy:8080 \
+  --html-file ./index.html \
+  --format json
+```
+
+The response URL can be fetched without API authentication if the deployment exposes the `/assets` route through ingress to the asset service.
 
 ### Managing Task Groups
 
