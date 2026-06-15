@@ -3013,6 +3013,80 @@ curl -H "X-API-Key: YOUR_API_KEY" \
   https://api.example.com/sandbox-policies/policy-abc123
 ```
 
+### GET /sandbox-policies/:id/domains
+
+Get aggregated domains collected from all sessions using a sandbox policy.
+
+**Permissions Required:** API key or bearer token with access to the policy
+
+**Description:**
+- Returns domains observed by the background domain collector for sessions using this policy
+- Data is refreshed approximately every 60 seconds
+- Empty lists are returned when no data has been collected yet
+- `ignored` domains are stored so UIs can suppress repeated import suggestions
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["example-blocked.com"],
+  "ignored": ["telemetry.example.com"],
+  "updated_at": "2026-06-15T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/policy-abc123/domains
+```
+
+**Response Codes:**
+- `200`: Aggregated domain lists
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Sandbox policy not found
+- `501`: Domain collection not available
+
+### PUT /sandbox-policies/:id/domains/ignored
+
+Replace the ignored domain list for a sandbox policy.
+
+**Permissions Required:** API key or bearer token with access to the policy
+
+**Request Body:**
+```json
+{
+  "ignored": ["telemetry.example.com", "metrics.example.com"]
+}
+```
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["example-blocked.com"],
+  "ignored": ["telemetry.example.com", "metrics.example.com"],
+  "updated_at": "2026-06-15T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/sandbox-policies/policy-abc123/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["telemetry.example.com", "metrics.example.com"]}'
+```
+
+**Response Codes:**
+- `200`: Updated domain lists
+- `400`: Invalid request body
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Sandbox policy not found
+- `501`: Domain collection not available
+
 ### PUT /sandbox-policies/:id
 
 Update an existing sandbox policy.
@@ -3062,6 +3136,39 @@ Reference a policy when creating a session via the `sandbox` field in `params`:
 }
 ```
 The `policy_id` domains are merged with any inline `allowed_domains`/`denied_domains`.
+
+### GET /sessions/:sessionId/sandbox-domains
+
+Get domains observed by a sandboxed session's network filter proxy.
+
+**Permissions Required:** API key or bearer token with access to the session
+
+**Description:**
+- Returns domains split into `allowed` and `denied` lists
+- Available for Kubernetes sessions running with a sandbox sidecar
+- Returns `503` when the network filter is not available for the session
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["example-blocked.com"]
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/550e8400-e29b-41d4-a716-446655440000/sandbox-domains
+```
+
+**Response Codes:**
+- `200`: Domain lists from the network filter
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Session not found
+- `501`: Not implemented for this session type
+- `503`: Network filter not available for this session
 
 ## Codex Device Auth Endpoints
 
