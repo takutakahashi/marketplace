@@ -177,6 +177,9 @@ Read user information, settings, and notifications.
 **Required for:**
 - `GET /user/info` - Get user info
 - `GET /settings/:name` - Get setting
+- `GET /sandbox-policies/:id/domains` - Get collected domains for a sandbox policy
+- `PUT /sandbox-policies/:id/domains/ignored` - Replace ignored domains for a sandbox policy
+- `GET /sessions/:sessionId/sandbox-domains` - Get observed domains for a sandboxed session
 - `GET /users/me/api-key` - Get personal API key
 - `POST /users/me/api-key` - Create personal API key
 - `POST /notification/subscribe` - Subscribe to notifications
@@ -244,6 +247,9 @@ Request → Authentication → Permission Check → Ownership Check → Handler
 | `GET /sessions/:id/share` | `session:access` | Yes |
 | `DELETE /sessions/:id/share` | `session:access` | Yes |
 | `ANY /s/:shareToken/*` | None | No |
+| `GET /sandbox-policies/:id/domains` | Authenticated | Policy access |
+| `PUT /sandbox-policies/:id/domains/ignored` | Authenticated | Policy access |
+| `GET /sessions/:id/sandbox-domains` | Authenticated | Yes |
 | `GET /user/info` | `session:read` | N/A |
 | `GET /settings/:name` | `session:read` | N/A |
 | `PUT /settings/:name` | `session:create` | N/A |

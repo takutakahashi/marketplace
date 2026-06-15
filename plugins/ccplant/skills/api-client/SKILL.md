@@ -10,9 +10,10 @@ description: |
   (11) Manage files (e.g., SSH keys) that are placed in agent sessions at startup,
   (12) Create and manage session profiles (reusable session configurations),
   (13) Create and manage sandbox policies (network filter rule sets for sessions),
-  (14) Manage Codex device authentication flow,
-  (15) Upload HTML assets and get externally reachable asset URLs,
-  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
+  (14) Inspect collected sandbox domains and maintain ignored-domain lists,
+  (15) Manage Codex device authentication flow,
+  (16) Upload HTML assets and get externally reachable asset URLs,
+  (17) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
@@ -221,6 +222,26 @@ agentapi-proxy client summarize-drafts \
   --source-session-id SOURCE_SESSION_ID \
   --scope user \
   --key project=myapp
+```
+
+### Inspecting Sandbox Domains
+
+Sandboxed Kubernetes sessions can report domains observed by the network filter. Policy-level endpoints aggregate domains across sessions using the policy, and the ignored list lets UIs suppress repeated suggestions.
+
+```bash
+# Domains observed by one sandboxed session
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/SESSION_ID/sandbox-domains
+
+# Aggregated domains for a sandbox policy
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/POLICY_ID/domains
+
+# Replace ignored domains for a sandbox policy
+curl -X PUT https://api.example.com/sandbox-policies/POLICY_ID/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["telemetry.example.com"]}'
 ```
 
 ### Uploading HTML Assets
