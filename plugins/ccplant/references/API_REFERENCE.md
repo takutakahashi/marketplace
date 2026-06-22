@@ -9,6 +9,7 @@
 - [Webhook Management Endpoints](#webhook-management-endpoints)
 - [Task Management Endpoints](#task-management-endpoints)
 - [Task Group Management Endpoints](#task-group-management-endpoints)
+- [Resource Transfer Endpoints](#resource-transfer-endpoints)
 - [Memory Management Endpoints](#memory-management-endpoints)
 - [SlackBot Management Endpoints](#slackbot-management-endpoints)
 - [Files Management Endpoints](#files-management-endpoints)
@@ -19,7 +20,7 @@
 - [Session Profiles Endpoints](#session-profiles-endpoints)
 - [Sandbox Policies Endpoints](#sandbox-policies-endpoints)
 - [Codex Device Auth Endpoints](#codex-device-auth-endpoints)
-- [Authentication Endpoints](#authentication-endpoints)
+- [Health Endpoint](#health-endpoint)
 
 ## Session Management Endpoints
 
@@ -49,7 +50,7 @@ Create a new agentapi session.
   },
   "params": {
     "message": "Initial message to agent",
-    "agent_type": "claude-agentapi",
+    "agent_type": "claude-acp",
     "oneshot": false,
     "sandbox": {
       "enabled": true,
@@ -65,12 +66,16 @@ Create a new agentapi session.
 
 **SessionParams fields (`params`):**
 - `message`: Initial message to send to the agent after session starts
-- `agent_type`: Agent type (`claude-agentapi` is the default)
+- `agent_type`: Agent type. Supported values include `claude-acp`, `codex-acp`, and `cursor`; when omitted the proxy uses its default agentapi runtime
+- `github_token`: GitHub token to use for authentication instead of GitHub App
 - `oneshot`: When true, the session auto-deletes after Claude stops responding
 - `cycle_message`: Message to send after each Claude stop event (for recurring execution)
 - `cycle_max_count`: Maximum number of cycles (requires `cycle_message`)
 - `initial_message_wait_second`: Seconds to wait before sending the initial message
+- `slack`: Slack channel/thread metadata for Slack-integrated sessions
 - `sandbox`: Network sandbox configuration (see [Sandbox Policies Endpoints](#sandbox-policies-endpoints))
+- `docker`: Docker-in-Docker sidecar configuration for sessions that need Docker commands
+- `session_ttl`: Duration after the last message before automatic session deletion, using Go duration format such as `48h`
 
 **Response:**
 ```json
@@ -1445,6 +1450,78 @@ curl -X DELETE https://api.example.com/task-groups/group-abc123 \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
+## Resource Transfer Endpoints
+
+### POST /resources/transfer
+
+Transfer ownership of a user- or team-scoped resource. Supports dry-run validation before mutating the resource.
+
+**Permissions Required:** API key or bearer token authentication. The caller must have access to the source resource and the target user or team scope.
+
+**Request Body:**
+```json
+{
+  "resource_type": "memory",
+  "resource_id": "1b81fae1-a266-4538-a66c-2b0b0e274a81",
+  "target_scope": "team",
+  "target_team_id": "org/backend-team",
+  "dry_run": true
+}
+```
+
+**Fields:**
+- `resource_type` (required): One of `memory`, `task`, `task_group`, `webhook`, `slackbot`, `session_profile`, or `sandbox_policy`
+- `resource_id` (required): ID of the resource to transfer
+- `target_scope` (required): `user` or `team`
+- `target_user_id`: Target user when `target_scope` is `user`; defaults to the current user
+- `target_team_id`: Target team when `target_scope` is `team`
+- `dry_run`: When true, validate the transfer and return the planned result without changing ownership
+
+**Response:**
+```json
+{
+  "resource_type": "memory",
+  "resource_id": "1b81fae1-a266-4538-a66c-2b0b0e274a81",
+  "from": {
+    "scope": "user",
+    "user_id": "alice"
+  },
+  "to": {
+    "scope": "team",
+    "team_id": "org/backend-team"
+  },
+  "status": "dry_run",
+  "dry_run": true,
+  "warnings": []
+}
+```
+
+**Example:**
+```bash
+# Validate a transfer first
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "memory",
+    "resource_id": "1b81fae1-a266-4538-a66c-2b0b0e274a81",
+    "target_scope": "team",
+    "target_team_id": "org/backend-team",
+    "dry_run": true
+  }'
+
+# Perform the transfer
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "sandbox_policy",
+    "resource_id": "policy-abc123",
+    "target_scope": "user",
+    "target_user_id": "bob"
+  }'
+```
+
 ## Memory Management Endpoints
 
 Memory entries allow storing and retrieving contextual information for agents and users. Supports user-scoped (private) and team-scoped (shared) memories.
@@ -2406,37 +2483,6 @@ curl -X DELETE https://api.example.com/settings/myorg-backend \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
-### GET /users/me/api-key
-
-Get or create a personal API key.
-
-**Permissions Required:** `session:read`
-
-**Response:**
-```json
-{
-  "api_key": "ap_personal_xyz123"
-}
-```
-
-**Example:**
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/users/me/api-key
-```
-
-### POST /users/me/api-key
-
-Generate a new personal API key (rotates the existing key).
-
-**Permissions Required:** `session:read`
-
-**Example:**
-```bash
-curl -X POST https://api.example.com/users/me/api-key \
-  -H "X-API-Key: YOUR_API_KEY"
-```
-
 ## Notification Endpoints
 
 ### POST /notification/subscribe
@@ -2930,7 +2976,8 @@ Create a new sandbox policy.
   "scope": "user",
   "team_id": "optional-team-id",
   "allowed_domains": ["github.com", "*.github.com", "*.githubusercontent.com"],
-  "denied_domains": []
+  "denied_domains": [],
+  "count_mode": false
 }
 ```
 
@@ -2941,6 +2988,7 @@ Create a new sandbox policy.
 - `team_id`: Required when `scope` is `team`
 - `allowed_domains`: Allowlist mode — only these domains are permitted. Supports wildcard prefixes (e.g., `*.example.com`). When set, `denied_domains` is ignored.
 - `denied_domains`: Denylist mode — these domains are blocked, all others allowed. Used only when `allowed_domains` is empty.
+- `count_mode`: When true, rules are evaluated and blocked domains are recorded, but traffic is not actually blocked. Useful for auditing policies before enforcing them.
 
 **Response:**
 ```json
@@ -2950,6 +2998,7 @@ Create a new sandbox policy.
   "description": "Restrict to GitHub domains",
   "allowed_domains": ["github.com", "*.github.com", "*.githubusercontent.com"],
   "denied_domains": [],
+  "count_mode": false,
   "scope": "user",
   "owner_id": "alice",
   "created_at": "2024-01-01T12:00:00Z",
@@ -3023,7 +3072,8 @@ Update an existing sandbox policy.
 ```json
 {
   "name": "Updated Policy Name",
-  "allowed_domains": ["github.com", "*.npmjs.com"]
+  "allowed_domains": ["github.com", "*.npmjs.com"],
+  "count_mode": true
 }
 ```
 
@@ -3045,6 +3095,89 @@ Delete a sandbox policy by ID.
 ```bash
 curl -X DELETE https://api.example.com/sandbox-policies/policy-abc123 \
   -H "X-API-Key: YOUR_API_KEY"
+```
+
+### GET /sessions/:sessionId/sandbox-domains
+
+Get domains observed by a sandboxed session's network filter.
+
+**Permissions Required:** API key or bearer token authentication with access to the session.
+
+**Description:**
+- Returns domains split into `allowed` and `denied` lists.
+- Available for Kubernetes sessions with a sandbox sidecar.
+- Returns `501` when unsupported for the session type and `503` when the network filter is unavailable.
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["tracking.example.com"]
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/550e8400-e29b-41d4-a716-446655440000/sandbox-domains
+```
+
+### GET /sandbox-policies/:id/domains
+
+Get aggregated domains collected from sessions using a sandbox policy.
+
+**Permissions Required:** API key or bearer token authentication with access to the policy.
+
+**Description:**
+- Returns collected `allowed`, `denied`, and `ignored` domain lists.
+- Data is refreshed by the background domain collector, currently every 60 seconds.
+- Returns empty lists when no data has been collected yet.
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["tracking.example.com"],
+  "ignored": ["telemetry.example.com"],
+  "updated_at": "2026-06-21T07:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/policy-abc123/domains
+```
+
+### PUT /sandbox-policies/:id/domains/ignored
+
+Replace the ignored domain list stored in collected sandbox policy domain data. Ignored domains are suppressed from import suggestion UIs.
+
+**Permissions Required:** API key or bearer token authentication with access to update the policy.
+
+**Request Body:**
+```json
+{
+  "ignored": ["telemetry.example.com", "analytics.example.com"]
+}
+```
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["tracking.example.com"],
+  "ignored": ["telemetry.example.com", "analytics.example.com"],
+  "updated_at": "2026-06-21T07:05:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/sandbox-policies/policy-abc123/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["telemetry.example.com", "analytics.example.com"]}'
 ```
 
 **Using Sandbox in Sessions:**
@@ -3133,9 +3266,7 @@ curl -X POST https://api.example.com/codex/device-auth/token \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-## Authentication Endpoints
-
-These endpoints are typically used for OAuth flows and do not require API key authentication.
+## Health Endpoint
 
 ### GET /health
 
@@ -3145,32 +3276,6 @@ Health check endpoint (no authentication required).
 ```bash
 curl https://api.example.com/health
 ```
-
-### GET /auth/status
-
-Check authentication status.
-
-**Example:**
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/auth/status
-```
-
-### POST /oauth/authorize
-
-Initiate OAuth authorization flow (no authentication required).
-
-### GET /oauth/callback
-
-OAuth callback endpoint (no authentication required).
-
-### POST /oauth/logout
-
-Logout from OAuth session.
-
-### POST /oauth/refresh
-
-Refresh OAuth access token.
 
 ## Error Responses
 

@@ -6,9 +6,8 @@ agentapi-proxy supports multiple authentication methods:
 
 1. **Static API Keys** - Pre-configured keys with role-based permissions
 2. **GitHub Token Authentication** - Using GitHub personal access tokens
-3. **GitHub OAuth Flow** - Browser-based OAuth2 authentication
-4. **AWS IAM Authentication** - Using AWS Access Key IDs
-5. **Hybrid Mode** - Combination of multiple methods
+3. **AWS IAM Authentication** - Using AWS Access Key IDs
+4. **Hybrid Mode** - Combination of multiple methods
 
 ## Static API Keys (Most Common)
 
@@ -138,9 +137,9 @@ curl -H "Authorization: Bearer ghp_your_github_token" \
   https://api.example.com/start
 ```
 
-## GitHub OAuth Flow
+## GitHub Bearer Tokens
 
-Full OAuth2 flow for web applications:
+Deployments can accept bearer tokens issued by GitHub OAuth or another configured identity provider. The current public OpenAPI exposes bearer authentication as a credential type for protected endpoints, not as a standalone OAuth browser flow.
 
 ```json
 {
@@ -159,11 +158,12 @@ Full OAuth2 flow for web applications:
 }
 ```
 
-OAuth endpoints:
-- `POST /oauth/authorize` - Start authorization
-- `GET /oauth/callback` - Handle callback
-- `POST /oauth/logout` - Logout
-- `POST /oauth/refresh` - Refresh token
+Usage:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  https://api.example.com/user/info
+```
 
 ## AWS IAM Authentication
 
@@ -249,25 +249,6 @@ API keys are validated with these checks:
 2. **Expiration**: Current time must be before `expires_at`
 3. **User**: Associated user must be valid
 4. **Permissions**: User must have required permissions for the endpoint
-
-## Personal API Keys
-
-Users can generate personal API keys through the API:
-
-```bash
-# Get or create personal API key
-curl -H "Authorization: Bearer ghp_github_token" \
-  https://api.example.com/users/me/api-key
-
-# Rotate personal API key
-curl -X POST -H "Authorization: Bearer ghp_github_token" \
-  https://api.example.com/users/me/api-key
-```
-
-Personal keys:
-- Valid for 24 hours by default
-- Automatically associated with the user
-- Can be rotated on demand
 
 ## Best Practices
 

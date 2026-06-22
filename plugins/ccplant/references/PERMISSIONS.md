@@ -177,11 +177,12 @@ Read user information, settings, and notifications.
 **Required for:**
 - `GET /user/info` - Get user info
 - `GET /settings/:name` - Get setting
-- `GET /users/me/api-key` - Get personal API key
-- `POST /users/me/api-key` - Create personal API key
 - `POST /notification/subscribe` - Subscribe to notifications
 - `GET /notification/subscribe` - Get subscription info
 - `DELETE /notification/subscribe` - Unsubscribe
+- `GET /notifications/history` - Get notification history
+- `GET /sessions/:sessionId/sandbox-domains` - Get observed sandbox domains for a session
+- `GET /sandbox-policies/:id/domains` - Get aggregated sandbox policy domains
 
 **Example:**
 ```bash
@@ -248,13 +249,16 @@ Request → Authentication → Permission Check → Ownership Check → Handler
 | `GET /settings/:name` | `session:read` | N/A |
 | `PUT /settings/:name` | `session:create` | N/A |
 | `DELETE /settings/:name` | `session:create` | N/A |
-| `GET /users/me/api-key` | `session:read` | N/A |
-| `POST /users/me/api-key` | `session:read` | N/A |
 | `POST /notification/subscribe` | `session:read` | N/A |
 | `GET /notification/subscribe` | `session:read` | N/A |
 | `DELETE /notification/subscribe` | `session:read` | N/A |
+| `GET /notifications/history` | `session:read` | N/A |
+| `POST /notifications/send` | `session:create` | N/A |
+| `POST /resources/transfer` | Authenticated | Resource access |
+| `GET /sessions/:id/sandbox-domains` | `session:read` | Yes |
+| `GET /sandbox-policies/:id/domains` | Authenticated | Policy access |
+| `PUT /sandbox-policies/:id/domains/ignored` | Authenticated | Policy access |
 | `GET /health` | None | No |
-| `GET /auth/status` | Authenticated | No |
 
 ## Custom Roles
 
