@@ -25,8 +25,10 @@ Comprehensive toolkit for agentapi-proxy with three main skills: API client for 
 
 #### 1. API Client (`api-client`)
 - Complete API endpoint reference with curl examples
-- Multiple authentication methods (X-API-Key, Bearer token, GitHub OAuth, AWS IAM)
+- Multiple authentication methods (X-API-Key, Bearer token, GitHub token, AWS IAM)
 - Session lifecycle management (create, search, delete, route)
+- Resource ownership transfer between user and team scopes
+- Sandbox domain collection and ignored-domain management
 - Detailed permission and RBAC documentation
 - Helper script for making API requests
 
@@ -65,6 +67,7 @@ After installation, Claude Code will have knowledge of:
 - agentapi-proxy API endpoints and usage
 - API Key authentication methods
 - Session management workflows
+- Resource transfer and sandbox domain inspection
 - Permission and role configurations
 
 **Webhook Automation:**

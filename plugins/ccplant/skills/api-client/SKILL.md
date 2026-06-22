@@ -12,7 +12,9 @@ description: |
   (13) Create and manage sandbox policies (network filter rule sets for sessions),
   (14) Manage Codex device authentication flow,
   (15) Upload HTML assets and get externally reachable asset URLs,
-  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
+  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name),
+  (17) Transfer ownership of user/team-scoped resources,
+  (18) Inspect sandbox domain collection data and ignored-domain lists.
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
@@ -266,6 +268,55 @@ Use the mcp__ccplant__list_task_groups tool
 
 # Delete a task group
 Use the mcp__ccplant__delete_task_group tool
+```
+
+### Transferring Resource Ownership
+
+Use `POST /resources/transfer` to move supported resources between user and team scopes. Supported resource types are `memory`, `task`, `task_group`, `webhook`, `slackbot`, `session_profile`, and `sandbox_policy`.
+
+```bash
+# Dry-run first
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "memory",
+    "resource_id": "MEMORY_ID",
+    "target_scope": "team",
+    "target_team_id": "org/backend-team",
+    "dry_run": true
+  }'
+
+# Perform the transfer
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "sandbox_policy",
+    "resource_id": "POLICY_ID",
+    "target_scope": "user",
+    "target_user_id": "alice"
+  }'
+```
+
+### Inspecting Sandbox Domains
+
+Sandbox policies support domain collection and count mode. Use these endpoints to audit observed traffic and suppress noisy domains from suggestion UIs.
+
+```bash
+# Domains observed by one sandboxed session
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/SESSION_ID/sandbox-domains
+
+# Aggregated domains collected for a policy
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/POLICY_ID/domains
+
+# Replace ignored domains for a policy
+curl -X PUT https://api.example.com/sandbox-policies/POLICY_ID/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["telemetry.example.com"]}'
 ```
 
 ### Managing Files
