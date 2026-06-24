@@ -38,7 +38,7 @@ This skill provides guidance for interacting with the agentapi-proxy API.
 | `slackbot` | SlackBot 管理 | create / list / get / apply / delete |
 | `send` | エージェントへのメッセージ送信 | - |
 | `status` | エージェントのステータス取得 | - |
-| `events` | エージェントイベントの監視 | - |
+| `events` | エージェントイベントの監視（SSEストリーム） | - |
 | `history` | 会話履歴の取得 | - |
 | `delete-session` | 現在のセッションの削除 | - |
 | `send-notification` | プッシュ通知の送信 | - |
