@@ -12,7 +12,9 @@ description: |
   (13) Create and manage sandbox policies (network filter rule sets for sessions),
   (14) Manage Codex device authentication flow,
   (15) Upload HTML assets and get externally reachable asset URLs,
-  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
+  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name),
+  (17) Inspect sandbox domain observations and ignored domain suggestions,
+  (18) Transfer user- or team-scoped resources with dry-run validation.
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
@@ -375,6 +377,45 @@ curl -X PUT https://api.example.com/settings/alice \
 ```
 
 See [API_REFERENCE.md](references/API_REFERENCE.md#credentials-management-endpoints) and [API_REFERENCE.md](references/API_REFERENCE.md#user--settings-endpoints) for complete details.
+
+### Inspecting Sandbox Domains
+
+Sandboxed sessions expose observed domains through direct API calls. Use these when tuning allowlists/denylists or reviewing `count_mode` audit results.
+
+```bash
+# Domains observed by one session
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/SESSION_ID/sandbox-domains
+
+# Aggregated domains for a sandbox policy
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/POLICY_ID/domains
+
+# Replace ignored domains for import suggestions
+curl -X PUT https://api.example.com/sandbox-policies/POLICY_ID/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["analytics.example.com"]}'
+```
+
+Sandbox policy and session sandbox configs support `count_mode`: when true, blocked domains are recorded without blocking traffic.
+
+### Transferring Resources
+
+Use `/resources/transfer` to move supported user- or team-scoped resources. Supported `resource_type` values are `memory`, `task`, `task_group`, `webhook`, `slackbot`, `session_profile`, and `sandbox_policy`. Prefer `dry_run: true` first to validate permissions and target scope.
+
+```bash
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "memory",
+    "resource_id": "memory-abc123",
+    "target_scope": "team",
+    "target_team_id": "org/team-slug",
+    "dry_run": true
+  }'
+```
 
 ## API Reference
 
