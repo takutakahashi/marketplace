@@ -18,6 +18,7 @@
 - [Settings Sync (GitHub) Endpoints](#settings-sync-github-endpoints)
 - [Session Profiles Endpoints](#session-profiles-endpoints)
 - [Sandbox Policies Endpoints](#sandbox-policies-endpoints)
+- [Resource Transfer Endpoints](#resource-transfer-endpoints)
 - [Codex Device Auth Endpoints](#codex-device-auth-endpoints)
 - [Authentication Endpoints](#authentication-endpoints)
 
@@ -49,13 +50,23 @@ Create a new agentapi session.
   },
   "params": {
     "message": "Initial message to agent",
-    "agent_type": "claude-agentapi",
+    "agent_type": "claude-acp",
+    "github_token": "ghp_token",
+    "session_ttl": "48h",
     "oneshot": false,
+    "slack": {
+      "channel": "C1234567890",
+      "thread_ts": "1234567890.123456"
+    },
     "sandbox": {
       "enabled": true,
       "policy_id": "policy-uuid",
       "allowed_domains": ["github.com", "*.example.com"],
-      "denied_domains": []
+      "denied_domains": [],
+      "count_mode": false
+    },
+    "docker": {
+      "enabled": true
     }
   }
 }
@@ -65,12 +76,16 @@ Create a new agentapi session.
 
 **SessionParams fields (`params`):**
 - `message`: Initial message to send to the agent after session starts
-- `agent_type`: Agent type (`claude-agentapi` is the default)
+- `agent_type`: Agent type. Supported values include `claude-acp`, `codex-acp`, and `cursor`. If omitted, the server uses its default agentapi agent.
+- `github_token`: GitHub token to use for authentication instead of GitHub App credentials.
+- `slack`: Slack context with `channel` and `thread_ts` for threaded session integration.
 - `oneshot`: When true, the session auto-deletes after Claude stops responding
 - `cycle_message`: Message to send after each Claude stop event (for recurring execution)
 - `cycle_max_count`: Maximum number of cycles (requires `cycle_message`)
 - `initial_message_wait_second`: Seconds to wait before sending the initial message
+- `session_ttl`: Go duration string such as `48h`; after the last message the session can be automatically deleted. Use hours, not `7d`-style day notation.
 - `sandbox`: Network sandbox configuration (see [Sandbox Policies Endpoints](#sandbox-policies-endpoints))
+- `docker`: Docker-in-Docker sidecar configuration. When enabled, `DOCKER_HOST=tcp://127.0.0.1:2375` is set for the main container.
 
 **Response:**
 ```json
@@ -326,6 +341,39 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 
 **Access Control:**
 - Users can only monitor their own sessions
+
+### GET /sessions/:sessionId/sandbox-domains
+
+Get domains observed by a sandboxed session's network filter.
+
+**Permissions Required:** `session:read`
+
+**Description:**
+- Returns domains split into `allowed` and `denied` sets.
+- Only available for Kubernetes sessions with a network filter sidecar.
+- Returns `503` when the network filter is not running for the session.
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["example.org"]
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/550e8400-e29b-41d4-a716-446655440000/sandbox-domains
+```
+
+**Response Codes:**
+- `200`: Domain lists returned
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Session not found
+- `501`: Not implemented for this session type
+- `503`: Network filter not available for this session
 
 ## Session Sharing Endpoints
 
@@ -2930,7 +2978,8 @@ Create a new sandbox policy.
   "scope": "user",
   "team_id": "optional-team-id",
   "allowed_domains": ["github.com", "*.github.com", "*.githubusercontent.com"],
-  "denied_domains": []
+  "denied_domains": [],
+  "count_mode": false
 }
 ```
 
@@ -2941,6 +2990,7 @@ Create a new sandbox policy.
 - `team_id`: Required when `scope` is `team`
 - `allowed_domains`: Allowlist mode — only these domains are permitted. Supports wildcard prefixes (e.g., `*.example.com`). When set, `denied_domains` is ignored.
 - `denied_domains`: Denylist mode — these domains are blocked, all others allowed. Used only when `allowed_domains` is empty.
+- `count_mode`: When true, rules are evaluated and blocked domains are recorded, but traffic is not blocked. Useful for auditing policies before enforcing them.
 
 **Response:**
 ```json
@@ -2950,6 +3000,7 @@ Create a new sandbox policy.
   "description": "Restrict to GitHub domains",
   "allowed_domains": ["github.com", "*.github.com", "*.githubusercontent.com"],
   "denied_domains": [],
+  "count_mode": false,
   "scope": "user",
   "owner_id": "alice",
   "created_at": "2024-01-01T12:00:00Z",
@@ -3047,6 +3098,82 @@ curl -X DELETE https://api.example.com/sandbox-policies/policy-abc123 \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
+### GET /sandbox-policies/:id/domains
+
+Get aggregated sandbox domain observations for a policy.
+
+**Permissions Required:** `session:read`
+
+**Description:**
+- Returns `allowed`, `denied`, and `ignored` domain lists collected from sessions using the policy.
+- Domain collection is refreshed periodically by the background collector.
+- Returns empty lists when no data has been collected.
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "registry.npmjs.org"],
+  "denied": ["example.org"],
+  "ignored": ["analytics.example.com"],
+  "updated_at": "2026-06-29T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/policy-abc123/domains
+```
+
+**Response Codes:**
+- `200`: Aggregated domain lists returned
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Sandbox policy not found
+- `501`: Domain collection not available
+
+### PUT /sandbox-policies/:id/domains/ignored
+
+Replace the ignored domain list for a sandbox policy.
+
+**Permissions Required:** `session:create`
+
+**Description:**
+Ignored domains are suppressed from import suggestions so users are not repeatedly prompted to add or deny the same domains.
+
+**Request Body:**
+```json
+{
+  "ignored": ["analytics.example.com", "telemetry.example.net"]
+}
+```
+
+**Response:**
+```json
+{
+  "allowed": ["github.com"],
+  "denied": ["example.org"],
+  "ignored": ["analytics.example.com", "telemetry.example.net"],
+  "updated_at": "2026-06-29T12:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/sandbox-policies/policy-abc123/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["analytics.example.com"]}'
+```
+
+**Response Codes:**
+- `200`: Ignored domain list updated
+- `400`: Invalid request body
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Sandbox policy not found
+- `501`: Domain collection not available
+
 **Using Sandbox in Sessions:**
 
 Reference a policy when creating a session via the `sandbox` field in `params`:
@@ -3062,6 +3189,73 @@ Reference a policy when creating a session via the `sandbox` field in `params`:
 }
 ```
 The `policy_id` domains are merged with any inline `allowed_domains`/`denied_domains`.
+
+## Resource Transfer Endpoints
+
+### POST /resources/transfer
+
+Transfer ownership of a user- or team-scoped resource. Supports dry-run validation before applying a transfer.
+
+**Permissions Required:** Resource-specific ownership/admin permissions.
+
+**Request Body:**
+```json
+{
+  "resource_type": "memory",
+  "resource_id": "memory-abc123",
+  "target_scope": "team",
+  "target_user_id": "alice",
+  "target_team_id": "org/team-slug",
+  "dry_run": true
+}
+```
+
+**Fields:**
+- `resource_type` (required): One of `memory`, `task`, `task_group`, `webhook`, `slackbot`, `session_profile`, or `sandbox_policy`
+- `resource_id` (required): ID of the resource to transfer
+- `target_scope` (required): `user` or `team`
+- `target_user_id`: Target user when transferring to user scope. Defaults to the authenticated user.
+- `target_team_id`: Target team when transferring to team scope.
+- `dry_run`: Validate permissions and target ownership without mutating the resource.
+
+**Response:**
+```json
+{
+  "resource_type": "memory",
+  "resource_id": "memory-abc123",
+  "from": {
+    "scope": "user",
+    "user_id": "alice"
+  },
+  "to": {
+    "scope": "team",
+    "team_id": "org/team-slug"
+  },
+  "status": "dry_run",
+  "dry_run": true
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "memory",
+    "resource_id": "memory-abc123",
+    "target_scope": "team",
+    "target_team_id": "org/team-slug",
+    "dry_run": true
+  }'
+```
+
+**Response Codes:**
+- `200`: Transfer result
+- `400`: Invalid request
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Resource not found
 
 ## Codex Device Auth Endpoints
 
