@@ -158,6 +158,7 @@ Access and interact with session instances.
 - `POST /sessions/:sessionId/share` - Create share token
 - `GET /sessions/:sessionId/share` - Get share token
 - `DELETE /sessions/:sessionId/share` - Revoke share token
+- `GET /sessions/:sessionId/sandbox-domains` - Get sandbox network domains observed by a session
 
 **Access Control:**
 - Non-admin users can only access their own sessions
@@ -177,11 +178,10 @@ Read user information, settings, and notifications.
 **Required for:**
 - `GET /user/info` - Get user info
 - `GET /settings/:name` - Get setting
-- `GET /users/me/api-key` - Get personal API key
-- `POST /users/me/api-key` - Create personal API key
 - `POST /notification/subscribe` - Subscribe to notifications
 - `GET /notification/subscribe` - Get subscription info
 - `DELETE /notification/subscribe` - Unsubscribe
+- `GET /sandbox-policies/:id/domains` - Get aggregated sandbox policy domains
 
 **Example:**
 ```bash
@@ -243,18 +243,19 @@ Request → Authentication → Permission Check → Ownership Check → Handler
 | `POST /sessions/:id/share` | `session:access` | Yes |
 | `GET /sessions/:id/share` | `session:access` | Yes |
 | `DELETE /sessions/:id/share` | `session:access` | Yes |
+| `GET /sessions/:id/sandbox-domains` | `session:access` | Yes |
 | `ANY /s/:shareToken/*` | None | No |
 | `GET /user/info` | `session:read` | N/A |
 | `GET /settings/:name` | `session:read` | N/A |
 | `PUT /settings/:name` | `session:create` | N/A |
 | `DELETE /settings/:name` | `session:create` | N/A |
-| `GET /users/me/api-key` | `session:read` | N/A |
-| `POST /users/me/api-key` | `session:read` | N/A |
 | `POST /notification/subscribe` | `session:read` | N/A |
 | `GET /notification/subscribe` | `session:read` | N/A |
 | `DELETE /notification/subscribe` | `session:read` | N/A |
+| `POST /resources/transfer` | `session:create` | Resource owner/team membership |
+| `GET /sandbox-policies/:id/domains` | `session:read` | Resource access |
+| `PUT /sandbox-policies/:id/domains/ignored` | `session:create` | Resource modification |
 | `GET /health` | None | No |
-| `GET /auth/status` | Authenticated | No |
 
 ## Custom Roles
 

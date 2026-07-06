@@ -12,13 +12,13 @@
     {
       "name": "ccplant",
       "source": "./plugins/ccplant",
-      "description": "Comprehensive toolkit for agentapi-proxy: API client for session management and webhook automation. Includes API authentication, session lifecycle management, and webhook configuration for GitHub and custom services.",
-      "version": "2.0.0",
+      "description": "Comprehensive toolkit for agentapi-proxy: API client, webhook and schedule automation, SlackBots, cycle workflows, and session manager setup.",
+      "version": "2.0.1",
       "author": {
         "name": "takutakahashi"
       },
       "license": "MIT",
-      "keywords": ["agentapi", "api", "authentication", "session-management", "webhooks", "automation"],
+      "keywords": ["agentapi", "api", "authentication", "session-management", "webhooks", "schedules", "slackbot", "automation"],
       "category": "developer-tools"
     }
   ]

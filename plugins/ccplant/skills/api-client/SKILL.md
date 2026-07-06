@@ -10,9 +10,11 @@ description: |
   (11) Manage files (e.g., SSH keys) that are placed in agent sessions at startup,
   (12) Create and manage session profiles (reusable session configurations),
   (13) Create and manage sandbox policies (network filter rule sets for sessions),
-  (14) Manage Codex device authentication flow,
-  (15) Upload HTML assets and get externally reachable asset URLs,
-  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
+  inspect collected sandbox domains, and update ignored domain suggestions,
+  (14) Transfer ownership of user/team-scoped resources,
+  (15) Manage Codex device authentication flow,
+  (16) Upload HTML assets and get externally reachable asset URLs,
+  (17) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
@@ -375,6 +377,52 @@ curl -X PUT https://api.example.com/settings/alice \
 ```
 
 See [API_REFERENCE.md](references/API_REFERENCE.md#credentials-management-endpoints) and [API_REFERENCE.md](references/API_REFERENCE.md#user--settings-endpoints) for complete details.
+
+### Managing Sandbox Domains
+
+Sandboxed Kubernetes sessions can expose domains observed by the network filter. Sandbox policies can also expose aggregated allowed, denied, and ignored domain lists collected from sessions using that policy.
+
+> **Note:** Sandbox domain management is not yet available via CLI. Use the API directly:
+
+```bash
+# Get domains observed by a sandboxed session
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/SESSION_ID/sandbox-domains
+
+# Get aggregated domains for a sandbox policy
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/POLICY_ID/domains
+
+# Replace ignored domains for a sandbox policy
+curl -X PUT https://api.example.com/sandbox-policies/POLICY_ID/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["telemetry.example.com"]}'
+```
+
+Use `count_mode: true` on sandbox policies to audit denied domains without blocking traffic.
+
+### Transferring Resource Ownership
+
+Resources with `user` or `team` scope can be transferred between scopes. Supported resource types are `memory`, `task`, `task_group`, `webhook`, `slackbot`, `session_profile`, and `sandbox_policy`.
+
+> **Note:** Resource transfer is not yet available via CLI. Use the API directly:
+
+```bash
+# Validate a transfer without mutating the resource
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "sandbox_policy",
+    "resource_id": "POLICY_ID",
+    "target_scope": "team",
+    "target_team_id": "TEAM_ID",
+    "dry_run": true
+  }'
+```
+
+Non-admin users can transfer resources only to themselves or to teams they belong to.
 
 ## API Reference
 

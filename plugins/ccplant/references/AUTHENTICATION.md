@@ -138,9 +138,9 @@ curl -H "Authorization: Bearer ghp_your_github_token" \
   https://api.example.com/start
 ```
 
-## GitHub OAuth Flow
+## GitHub OAuth Configuration
 
-Full OAuth2 flow for web applications:
+GitHub OAuth can be configured for web application deployments:
 
 ```json
 {
@@ -158,12 +158,6 @@ Full OAuth2 flow for web applications:
   }
 }
 ```
-
-OAuth endpoints:
-- `POST /oauth/authorize` - Start authorization
-- `GET /oauth/callback` - Handle callback
-- `POST /oauth/logout` - Logout
-- `POST /oauth/refresh` - Refresh token
 
 ## AWS IAM Authentication
 
@@ -249,25 +243,6 @@ API keys are validated with these checks:
 2. **Expiration**: Current time must be before `expires_at`
 3. **User**: Associated user must be valid
 4. **Permissions**: User must have required permissions for the endpoint
-
-## Personal API Keys
-
-Users can generate personal API keys through the API:
-
-```bash
-# Get or create personal API key
-curl -H "Authorization: Bearer ghp_github_token" \
-  https://api.example.com/users/me/api-key
-
-# Rotate personal API key
-curl -X POST -H "Authorization: Bearer ghp_github_token" \
-  https://api.example.com/users/me/api-key
-```
-
-Personal keys:
-- Valid for 24 hours by default
-- Automatically associated with the user
-- Can be rotated on demand
 
 ## Best Practices
 

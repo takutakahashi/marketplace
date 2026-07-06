@@ -16,10 +16,11 @@
 - [User & Settings Endpoints](#user--settings-endpoints)
 - [Notification Endpoints](#notification-endpoints)
 - [Settings Sync (GitHub) Endpoints](#settings-sync-github-endpoints)
+- [Resource Transfer Endpoints](#resource-transfer-endpoints)
 - [Session Profiles Endpoints](#session-profiles-endpoints)
 - [Sandbox Policies Endpoints](#sandbox-policies-endpoints)
 - [Codex Device Auth Endpoints](#codex-device-auth-endpoints)
-- [Authentication Endpoints](#authentication-endpoints)
+- [Health Endpoints](#health-endpoints)
 
 ## Session Management Endpoints
 
@@ -326,6 +327,37 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 
 **Access Control:**
 - Users can only monitor their own sessions
+
+### GET /sessions/:sessionId/sandbox-domains
+
+Get domains observed by a sandboxed Kubernetes session.
+
+**Permissions Required:** `session:access`
+
+**Description:**
+Returns domains seen by the session's network filter proxy. `allowed` contains domains that passed the filter; `denied` contains domains that were blocked. This endpoint is available only for Kubernetes sessions with a sandbox sidecar and network filter.
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["example.net"]
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sessions/abc123/sandbox-domains
+```
+
+**Response Codes:**
+- `200`: Domain lists returned
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Session not found
+- `501`: Not implemented for this session type
+- `503`: Network filter not available
 
 ## Session Sharing Endpoints
 
@@ -2406,37 +2438,6 @@ curl -X DELETE https://api.example.com/settings/myorg-backend \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
-### GET /users/me/api-key
-
-Get or create a personal API key.
-
-**Permissions Required:** `session:read`
-
-**Response:**
-```json
-{
-  "api_key": "ap_personal_xyz123"
-}
-```
-
-**Example:**
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/users/me/api-key
-```
-
-### POST /users/me/api-key
-
-Generate a new personal API key (rotates the existing key).
-
-**Permissions Required:** `session:read`
-
-**Example:**
-```bash
-curl -X POST https://api.example.com/users/me/api-key \
-  -H "X-API-Key: YOUR_API_KEY"
-```
-
 ## Notification Endpoints
 
 ### POST /notification/subscribe
@@ -2763,6 +2764,83 @@ curl -X POST https://api.example.com/settings/sync/all \
 - Individual tenant errors are captured in `results[].error`
 - Push is idempotent: no commit is created when file contents are unchanged
 
+## Resource Transfer Endpoints
+
+### POST /resources/transfer
+
+Transfer ownership of a user- or team-scoped resource.
+
+**Permissions Required:** `session:create`
+
+**Description:**
+Transfers supported resources between user and team scopes. Use `dry_run: true` to validate permissions and target ownership without changing the resource.
+
+**Supported resource types:**
+- `memory`
+- `task`
+- `task_group`
+- `webhook`
+- `slackbot`
+- `session_profile`
+- `sandbox_policy`
+
+**Request Body:**
+```json
+{
+  "resource_type": "memory",
+  "resource_id": "memory-abc123",
+  "target_scope": "team",
+  "target_team_id": "team-abc123",
+  "dry_run": false
+}
+```
+
+**Fields:**
+- `resource_type` (required): One of the supported resource types
+- `resource_id` (required): Resource identifier
+- `target_scope` (required): `user` or `team`
+- `target_user_id`: Target user ID when transferring to user scope. Defaults to the authenticated user.
+- `target_team_id`: Target team ID when transferring to team scope.
+- `dry_run`: Validate only; do not persist the transfer.
+
+**Response:**
+```json
+{
+  "resource_type": "memory",
+  "resource_id": "memory-abc123",
+  "from": {
+    "scope": "user",
+    "user_id": "alice"
+  },
+  "to": {
+    "scope": "team",
+    "team_id": "team-abc123"
+  },
+  "status": "transferred",
+  "dry_run": false
+}
+```
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "sandbox_policy",
+    "resource_id": "policy-abc123",
+    "target_scope": "team",
+    "target_team_id": "team-abc123",
+    "dry_run": true
+  }'
+```
+
+**Notes:**
+- Non-admin users can transfer resources only to themselves or to teams they belong to.
+- Task group transfers do not automatically transfer tasks in the group.
+- Webhook and SlackBot transfers do not automatically transfer referenced resources.
+- Sandbox policy transfers do not automatically update resources that reference the policy.
+
 ## Session Profiles Endpoints
 
 Session profiles are named, reusable session configurations. Instead of specifying session parameters on every call, you can define a profile once and reference it by ID.
@@ -2930,7 +3008,8 @@ Create a new sandbox policy.
   "scope": "user",
   "team_id": "optional-team-id",
   "allowed_domains": ["github.com", "*.github.com", "*.githubusercontent.com"],
-  "denied_domains": []
+  "denied_domains": [],
+  "count_mode": false
 }
 ```
 
@@ -2941,6 +3020,7 @@ Create a new sandbox policy.
 - `team_id`: Required when `scope` is `team`
 - `allowed_domains`: Allowlist mode — only these domains are permitted. Supports wildcard prefixes (e.g., `*.example.com`). When set, `denied_domains` is ignored.
 - `denied_domains`: Denylist mode — these domains are blocked, all others allowed. Used only when `allowed_domains` is empty.
+- `count_mode`: When true, rules are evaluated and blocked domains are recorded, but traffic is not blocked. Useful for auditing policies before enforcement.
 
 **Response:**
 ```json
@@ -2950,6 +3030,7 @@ Create a new sandbox policy.
   "description": "Restrict to GitHub domains",
   "allowed_domains": ["github.com", "*.github.com", "*.githubusercontent.com"],
   "denied_domains": [],
+  "count_mode": false,
   "scope": "user",
   "owner_id": "alice",
   "created_at": "2024-01-01T12:00:00Z",
@@ -3032,7 +3113,73 @@ Update an existing sandbox policy.
 curl -X PUT https://api.example.com/sandbox-policies/policy-abc123 \
   -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"allowed_domains": ["github.com", "*.npmjs.com"]}'
+  -d '{"allowed_domains": ["github.com", "*.npmjs.com"], "count_mode": true}'
+```
+
+### GET /sandbox-policies/:id/domains
+
+Get aggregated domains collected from sessions using a sandbox policy.
+
+**Permissions Required:** `session:read`
+
+**Description:**
+Returns allowed, denied, and ignored domain lists collected by the background domain collector from sessions that use the policy. Data is refreshed periodically and may be empty when no data has been collected yet.
+
+**Response:**
+```json
+{
+  "allowed": ["github.com", "api.github.com"],
+  "denied": ["registry.example.net"],
+  "ignored": ["telemetry.example.com"],
+  "updated_at": "2026-07-05T08:00:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://api.example.com/sandbox-policies/policy-abc123/domains
+```
+
+**Response Codes:**
+- `200`: Aggregated domain lists returned
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Sandbox policy not found
+- `501`: Domain collection not available
+
+### PUT /sandbox-policies/:id/domains/ignored
+
+Replace the ignored domain list for collected sandbox policy domain data.
+
+**Permissions Required:** `session:create`
+
+**Description:**
+Ignored domains are suppressed from import suggestion UIs so users are not repeatedly prompted to act on them.
+
+**Request Body:**
+```json
+{
+  "ignored": ["telemetry.example.com", "metrics.example.net"]
+}
+```
+
+**Response:**
+```json
+{
+  "allowed": ["github.com"],
+  "denied": ["registry.example.net"],
+  "ignored": ["telemetry.example.com", "metrics.example.net"],
+  "updated_at": "2026-07-05T08:05:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT https://api.example.com/sandbox-policies/policy-abc123/domains/ignored \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"ignored": ["telemetry.example.com"]}'
 ```
 
 ### DELETE /sandbox-policies/:id
@@ -3133,9 +3280,7 @@ curl -X POST https://api.example.com/codex/device-auth/token \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-## Authentication Endpoints
-
-These endpoints are typically used for OAuth flows and do not require API key authentication.
+## Health Endpoints
 
 ### GET /health
 
@@ -3145,32 +3290,6 @@ Health check endpoint (no authentication required).
 ```bash
 curl https://api.example.com/health
 ```
-
-### GET /auth/status
-
-Check authentication status.
-
-**Example:**
-```bash
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://api.example.com/auth/status
-```
-
-### POST /oauth/authorize
-
-Initiate OAuth authorization flow (no authentication required).
-
-### GET /oauth/callback
-
-OAuth callback endpoint (no authentication required).
-
-### POST /oauth/logout
-
-Logout from OAuth session.
-
-### POST /oauth/refresh
-
-Refresh OAuth access token.
 
 ## Error Responses
 

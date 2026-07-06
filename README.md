@@ -14,7 +14,7 @@ Add this marketplace to Claude Code:
 
 ### ccplant
 
-Comprehensive toolkit for agentapi-proxy with three main skills: API client for session management, webhook automation, and schedule management for delayed and recurring tasks.
+Comprehensive toolkit for agentapi-proxy with API client, webhook automation, schedule management, SlackBot management, cycle automation, and external session manager setup.
 
 **Install:**
 ```bash
@@ -27,6 +27,7 @@ Comprehensive toolkit for agentapi-proxy with three main skills: API client for 
 - Complete API endpoint reference with curl examples
 - Multiple authentication methods (X-API-Key, Bearer token, GitHub OAuth, AWS IAM)
 - Session lifecycle management (create, search, delete, route)
+- Task, memory, file, credential, settings, sandbox policy, and resource transfer workflows
 - Detailed permission and RBAC documentation
 - Helper script for making API requests
 
@@ -44,10 +45,25 @@ Comprehensive toolkit for agentapi-proxy with three main skills: API client for 
 - Team and user-scoped access control
 - Use cases: daily reports, code reviews, incident drills, delayed deployments
 
+#### 4. SlackBot Management (`slackbot-management`)
+- Configure SlackBots that create sessions from Slack events
+- Manage bot lifecycle and token setup
+
+#### 5. Cycle Automation (`cycle`)
+- Repeat agent sessions until completion criteria are met
+- Configure cycle counts and stop-hook behavior
+
+#### 6. Session Manager Setup (`session-manager-setup`)
+- Deploy an external session manager for offloading sessions
+- Configure HMAC forwarding between proxy instances
+
 **Included Resources:**
 - **skills/api-client/SKILL.md**: Session management workflows
 - **skills/webhook-management/SKILL.md**: Webhook automation guide
 - **skills/schedule-management/SKILL.md**: Schedule management guide
+- **skills/slackbot-management/SKILL.md**: SlackBot automation guide
+- **skills/cycle/SKILL.md**: Cycle automation guide
+- **skills/session-manager-setup/SKILL.md**: External session manager setup
 - **references/API_REFERENCE.md**: Complete API endpoint documentation (includes schedule endpoints)
 - **references/AUTHENTICATION.md**: Authentication methods and setup
 - **references/PERMISSIONS.md**: Role-based access control
