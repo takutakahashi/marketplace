@@ -18,6 +18,7 @@
 - [Settings Sync (GitHub) Endpoints](#settings-sync-github-endpoints)
 - [Session Profiles Endpoints](#session-profiles-endpoints)
 - [Sandbox Policies Endpoints](#sandbox-policies-endpoints)
+- [Resource Transfer Endpoint](#resource-transfer-endpoint)
 - [Codex Device Auth Endpoints](#codex-device-auth-endpoints)
 - [Authentication Endpoints](#authentication-endpoints)
 
@@ -49,14 +50,21 @@ Create a new agentapi session.
   },
   "params": {
     "message": "Initial message to agent",
-    "agent_type": "claude-agentapi",
+    "agent_type": "claude-acp",
     "oneshot": false,
     "sandbox": {
       "enabled": true,
       "policy_id": "policy-uuid",
       "allowed_domains": ["github.com", "*.example.com"],
-      "denied_domains": []
-    }
+      "denied_domains": [],
+      "count_mode": false
+    },
+    "docker": {
+      "enabled": true,
+      "registries": [{"server": "registry.example.com", "insecure": false}]
+    },
+    "session_ttl": "48h",
+    "unsynced_file_paths": ["/home/agentapi/.codex/auth.json"]
   }
 }
 ```
@@ -65,12 +73,15 @@ Create a new agentapi session.
 
 **SessionParams fields (`params`):**
 - `message`: Initial message to send to the agent after session starts
-- `agent_type`: Agent type (`claude-agentapi` is the default)
+- `agent_type`: Agent type. Supported values are `claude-legacy`, `claude-acp`, `codex-acp`, `pi-ollama`, and `cursor`
 - `oneshot`: When true, the session auto-deletes after Claude stops responding
 - `cycle_message`: Message to send after each Claude stop event (for recurring execution)
 - `cycle_max_count`: Maximum number of cycles (requires `cycle_message`)
 - `initial_message_wait_second`: Seconds to wait before sending the initial message
 - `sandbox`: Network sandbox configuration (see [Sandbox Policies Endpoints](#sandbox-policies-endpoints))
+- `docker`: Optional Docker-in-Docker sidecar configuration, including authenticated or insecure registries
+- `session_ttl`: Auto-deletion delay after the last message, as a Go duration (for example, `48h`; `7d` is invalid)
+- `unsynced_file_paths`: Managed file paths that must not be synced back to storage
 
 **Response:**
 ```json
@@ -2781,6 +2792,7 @@ Create a new session profile.
   "scope": "user",
   "team_id": "optional-team-id",
   "is_default": false,
+  "selector_tags": {"repository": "myorg/service"},
   "config": {
     "environment": {
       "CUSTOM_VAR": "value"
@@ -2791,9 +2803,12 @@ Create a new session profile.
     "initial_message_template": "Review PR #{{.pull_request.number}}: {{.pull_request.title}}",
     "reuse_session": false,
     "params": {
-      "agent_type": "claude-agentapi",
+      "agent_type": "claude-acp",
       "oneshot": true
-    }
+    },
+    "sandbox_policy_id": "policy-abc123",
+    "session_ttl": "72h",
+    "unsynced_file_paths": ["/home/agentapi/.codex/auth.json"]
   }
 }
 ```
@@ -2804,6 +2819,7 @@ Create a new session profile.
 - `scope`: `user` (default) or `team`
 - `team_id`: Required when `scope` is `team`
 - `is_default`: Whether this is the default profile for the tenant
+- `selector_tags`: Tag selector used to choose this profile when launching a session
 - `config`: Session configuration
   - `environment`: Environment variables to inject
   - `tags`: Tags to attach to sessions
@@ -2812,6 +2828,9 @@ Create a new session profile.
   - `reuse_session`: Whether to reuse an existing session
   - `memory_key`: Memory key mapping for session context
   - `params`: SessionParams (agent type, sandbox, oneshot, etc.)
+  - `sandbox_policy_id`: Sandbox policy applied automatically to sessions using the profile
+  - `session_ttl`: Default session TTL; `params.session_ttl` can override it per session
+  - `unsynced_file_paths`: Managed paths excluded from sync-back for sessions using the profile
 
 **Response:**
 ```json
@@ -2930,7 +2949,8 @@ Create a new sandbox policy.
   "scope": "user",
   "team_id": "optional-team-id",
   "allowed_domains": ["github.com", "*.github.com", "*.githubusercontent.com"],
-  "denied_domains": []
+  "denied_domains": [],
+  "count_mode": false
 }
 ```
 
@@ -2941,6 +2961,7 @@ Create a new sandbox policy.
 - `team_id`: Required when `scope` is `team`
 - `allowed_domains`: Allowlist mode — only these domains are permitted. Supports wildcard prefixes (e.g., `*.example.com`). When set, `denied_domains` is ignored.
 - `denied_domains`: Denylist mode — these domains are blocked, all others allowed. Used only when `allowed_domains` is empty.
+- `count_mode`: Evaluate rules and record blocked domains without actually blocking traffic
 
 **Response:**
 ```json
@@ -3062,6 +3083,44 @@ Reference a policy when creating a session via the `sandbox` field in `params`:
 }
 ```
 The `policy_id` domains are merged with any inline `allowed_domains`/`denied_domains`.
+
+## Resource Transfer Endpoint
+
+### POST /resources/transfer
+
+Transfer a supported resource between user and team ownership scopes. Supported resource types are
+`memory`, `task`, `task_group`, `webhook`, `slackbot`, `session_profile`, and `sandbox_policy`.
+
+Use `dry_run: true` first to validate authorization, resource existence, and the destination without
+changing the resource.
+
+**Request Body:**
+```json
+{
+  "resource_type": "session_profile",
+  "resource_id": "profile-abc123",
+  "target_scope": "team",
+  "target_team_id": "myorg/backend",
+  "dry_run": true
+}
+```
+
+For a user destination, set `target_scope` to `user` and optionally provide `target_user_id`; it
+defaults to the authenticated user. For a team destination, `target_team_id` is required.
+
+**Example:**
+```bash
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "session_profile",
+    "resource_id": "profile-abc123",
+    "target_scope": "team",
+    "target_team_id": "myorg/backend",
+    "dry_run": true
+  }'
+```
 
 ## Codex Device Auth Endpoints
 
