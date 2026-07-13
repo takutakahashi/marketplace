@@ -12,7 +12,8 @@ description: |
   (13) Create and manage sandbox policies (network filter rule sets for sessions),
   (14) Manage Codex device authentication flow,
   (15) Upload HTML assets and get externally reachable asset URLs,
-  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name).
+  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name),
+  (17) Transfer supported resources between user and team ownership scopes.
   Supports multiple authentication methods including static API keys (X-API-Key header) and
   Authorization Bearer tokens.
   Note: For schedule management, use the schedule-management skill instead. For webhook management,
@@ -44,7 +45,8 @@ This skill provides guidance for interacting with the agentapi-proxy API.
 | `send-notification` | プッシュ通知の送信 | - |
 | `summarize-drafts` | ドラフトメモリの要約 | - |
 
-> **Note:** タスクグループ (`task-group`) は CLI 未対応です。MCP ツールを使用してください。
+> **Note:** タスクグループ (`task-group`)、セッションプロファイル、サンドボックスポリシー、
+> リソース移管は CLI 未対応です。MCP ツールまたは REST API を使用してください。
 
 ### 接続設定
 
@@ -266,6 +268,28 @@ Use the mcp__ccplant__list_task_groups tool
 
 # Delete a task group
 Use the mcp__ccplant__delete_task_group tool
+```
+
+### Transferring Resource Ownership
+
+`POST /resources/transfer` transfers a supported resource between user and team ownership scopes.
+The supported `resource_type` values are `memory`, `task`, `task_group`, `webhook`, `slackbot`,
+`session_profile`, and `sandbox_policy`. Use `dry_run: true` to validate access and the destination
+without changing ownership.
+
+> **Note:** Resource transfer is not yet available via `agentapi-proxy client`. Use the REST API directly.
+
+```bash
+curl -X POST https://api.example.com/resources/transfer \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_type": "session_profile",
+    "resource_id": "profile-abc123",
+    "target_scope": "team",
+    "target_team_id": "myorg/backend",
+    "dry_run": true
+  }'
 ```
 
 ### Managing Files
