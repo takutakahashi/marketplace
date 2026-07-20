@@ -1,306 +1,162 @@
 ---
 name: session-manager-setup
 description: |
-  Set up an External Session Manager (ESM) for agentapi-proxy using a self-hosted k3s server.
-  Use when you need to: (1) Deploy agentapi-proxy in session manager mode on a separate server,
-  (2) Offload agent session workloads from the main cluster to a dedicated machine,
-  (3) Configure an External Session Manager (ESM) in Proxy A user settings so all new sessions
-  are routed to the self-hosted Proxy B, (4) Verify end-to-end HMAC-signed session creation
-  between Proxy A and Proxy B.
+  Set up and manage an External Session Manager (ESM) for agentapi-proxy on a native
+  Linux/macOS host or a self-hosted Kubernetes server. Use when you need to install,
+  register, inspect, update, rotate credentials for, or remove an ESM; route sessions
+  with allocator labels; or diagnose ESM connectivity and heartbeat failures.
 ---
 
-# External Session Manager (ESM) セットアップ
+# External Session Manager (ESM)
 
-This skill documents how to deploy a self-hosted **agentapi-proxy in session manager mode** (Proxy B)
-on a bare-metal or VM server running k3s, and wire it up as an External Session Manager in the
-main agentapi-proxy (Proxy A).
+An ESM lets a parent agentapi-proxy route sessions to another machine. Native ESMs use
+outbound allocation polling, so the parent does not need inbound access for allocation.
+The parent must still be able to reach the ESM's `public_url` for session traffic.
 
-## アーキテクチャ概要
-
-```
-ユーザー → Proxy A (main cluster) → HMAC署名付きリクエスト → Proxy B (k3s / ESM)
-                                                                   ↓
-                                                          agentapi セッションPod
+```text
+user -> parent /start -> allocation queue
+                         ^ outbound polling by ESM
+user -> parent /:sessionId/* -> HMAC-signed proxy -> ESM public_url
 ```
 
-- **Proxy A**: 既存の agentapi-proxy (例: `agentapi-proxy.agentapi-ui-dev.svc.cluster.local:8080`)
-- **Proxy B**: セルフホストサーバ上の agentapi-proxy (`SESSION_MANAGER_ENABLED=true`)
-- **HMAC**: Proxy A → Proxy B 間の通信は `X-Hub-Signature-256` + `X-Timestamp` ヘッダで署名・検証される
+## Native Linux/macOS installation (recommended)
 
----
-
-## Step 1: サーバに k3s をインストール
-
-対象サーバ (例: `10.20.11.65`) に SSH でログインし、k3s をインストールします。
+Use the one-command installer. It registers the host, installs and starts the daemon,
+then verifies local health and the parent heartbeat.
 
 ```bash
-# k3s インストール
-curl -sfL https://get.k3s.io | sh -
+export AGENTAPI_KEY="<parent-proxy-api-key>"
 
-# kubeconfig の確認
-sudo kubectl get nodes
+sudo --preserve-env=AGENTAPI_KEY agentapi-proxy native install \
+  --upstream https://parent-proxy.example.com \
+  --public-url http://10.0.0.10:8080 \
+  --name native-builder-01 \
+  --label pool=native \
+  --label machine=native-builder-01
 ```
 
-動作確認:
-```bash
-sudo kubectl get nodes
-# NAME        STATUS   ROLES                  AGE   VERSION
-# myserver    Ready    control-plane,master   1m    v1.x.x+k3s1
-```
+On macOS, omit `sudo`; the command installs a per-user LaunchAgent. Prefer
+`--api-key-stdin` or `--api-key-file` if preserving the environment is undesirable.
+The API key is used only for registration and is not saved in daemon configuration.
 
----
+Installation is idempotent: a stable instance ID is kept, registration and service
+configuration are updated on subsequent runs, and the connection token is preserved.
+The installer automatically detects `os`, `arch`, and `hostname` labels.
 
-## Step 2: HMAC シークレットの生成
-
-Proxy A と Proxy B の間で共有するシークレットを生成します。
-
-```bash
-# ランダムな64文字のシークレットを生成
-openssl rand -hex 32
-# 例: (出力をメモしておく — Proxy A の ESM 設定と Proxy B の Helm values 両方に設定する)
-```
-
-> **注意**: 生成したシークレットは安全な場所に保管してください。Proxy A の ESM 設定と
-> Proxy B の Helm デプロイ時に同じ値を使用します。
-
----
-
-## Step 3: k3s に Proxy B をデプロイ (セッションマネージャーモード)
-
-### Helm values ファイルの作成
-
-```yaml
-# session-manager-values.yaml
-replicaCount: 1
-
-kubernetesSession:
-  enabled: true
-  namespace: agentapi
-  replicaCount: 1
-  resources:
-    requests:
-      cpu: "500m"
-      memory: "512Mi"
-    limits:
-      cpu: "2"
-      memory: "4Gi"
-  pvc:
-    enabled: true
-    storageSize: "10Gi"
-  otelCollector:
-    enabled: false
-
-config:
-  auth:
-    static:
-      enabled: true
-      headerName: "X-API-Key"
-    github:
-      enabled: false
-
-env:
-  - name: SESSION_MANAGER_ENABLED
-    value: "true"
-  - name: SESSION_MANAGER_HMAC_SECRET
-    value: "<YOUR_HMAC_SECRET>"   # Step 2 で生成したシークレット
-
-resources:
-  requests:
-    memory: "256Mi"
-    cpu: "200m"
-  limits:
-    memory: "1Gi"
-    cpu: "1"
-
-scheduleWorker:
-  enabled: false
-slackbotCleanupWorker:
-  enabled: false
-
-service:
-  type: NodePort
-  port: 8080
-  nodePort: 30080   # Proxy A からアクセスできるポート
-```
-
-> **メモリ要件**: セッション Pod はデフォルトで最大 4GiB のメモリを要求します。
-> サーバに十分な RAM (推奨: 8GB 以上) があることを確認してください。
-
-### Helm でデプロイ
+### Lifecycle commands
 
 ```bash
-# k3s サーバ上で実行
-helm repo add agentapi-proxy oci://ghcr.io/takutakahashi/charts/agentapi-proxy || true
-
-helm upgrade --install agentapi-proxy \
-  oci://ghcr.io/takutakahashi/charts/agentapi-proxy \
-  --namespace agentapi-proxy \
-  --create-namespace \
-  -f session-manager-values.yaml \
-  --wait
+agentapi-proxy native status
+agentapi-proxy native doctor
+agentapi-proxy native restart
+agentapi-proxy native rotate-token
+agentapi-proxy native uninstall
 ```
 
-### デプロイ確認
+Linux stores configuration under `/etc/agentapi-native`, state under
+`/var/lib/agentapi-native`, and the managed executable under
+`/usr/local/libexec/agentapi-proxy`. macOS uses
+`~/Library/Application Support/agentapi-native` and
+`~/Library/LaunchAgents/com.agentapi.native.plist`.
+
+Native sessions are not sandboxed. Use a dedicated host for one user or a mutually
+trusted team. Each session has an isolated directory beneath
+`<state-dir>/sessions/<session-id>`; deleting the public session terminates its process
+group and removes that directory.
+
+## Registration API
+
+The CLI is preferred for installation, but the parent API supports complete ESM
+management. These endpoints currently require direct REST calls; the
+`agentapi-proxy client` has no ESM subcommand.
 
 ```bash
-kubectl rollout status deployment \
-  -n agentapi-proxy \
-  -l app.kubernetes.io/name=agentapi-proxy \
-  --timeout=120s
+PARENT_PROXY_URL="https://parent-proxy.example.com"
+API_KEY="<parent-proxy-api-key>"
 
-# NodePort が開いていることを確認
-curl -s http://localhost:30080/healthz
-# 期待値: 200 OK
-```
-
----
-
-## Step 4: Proxy A に ESM を登録
-
-Proxy A のユーザー設定 (`/settings/:username`) に ESM を追加します。
-
-```bash
-# Proxy A のエンドポイントと API キーを設定
-PROXY_A_URL="http://<proxy-a-host>:8080"
-API_KEY="<YOUR_PROXY_A_API_KEY>"
-USERNAME="<your-github-username>"
-
-# 現在の設定を取得
-curl -H "X-API-Key: $API_KEY" \
-  "$PROXY_A_URL/settings/$USERNAME" | jq .
-
-# ESM を追加
-curl -X PUT "$PROXY_A_URL/settings/$USERNAME" \
-  -H "X-API-Key: $API_KEY" \
-  -H "Content-Type: application/json" \
+# Idempotently register by stable instance_id. connection_token is returned only
+# on creation or explicit rotation.
+curl -X POST "$PARENT_PROXY_URL/external-session-managers" \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{
-    "external_session_managers": [
-      {
-        "name": "my-k3s-server",
-        "url": "http://<PROXY_B_IP>:30080",
-        "hmac_secret": "<YOUR_HMAC_SECRET>",
-        "default": true
-      }
-    ]
+    "instance_id": "host-stable-id",
+    "name": "native-builder-01",
+    "scope": "user",
+    "labels": {"pool":"native", "os":"linux"},
+    "default": false,
+    "public_url": "http://10.0.0.10:8080"
+  }'
+
+curl -H "X-API-Key: $API_KEY" \
+  "$PARENT_PROXY_URL/external-session-managers?scope=user"
+
+curl -X PATCH "$PARENT_PROXY_URL/external-session-managers/<manager-id>" \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{"instance_id":"host-stable-id","name":"native-builder-01","labels":{"pool":"build"}}'
+
+curl -X POST -H "X-API-Key: $API_KEY" \
+  "$PARENT_PROXY_URL/external-session-managers/<manager-id>/rotate-token"
+
+curl -X DELETE -H "X-API-Key: $API_KEY" \
+  "$PARENT_PROXY_URL/external-session-managers/<manager-id>"
+```
+
+For team ownership, set `scope=team` and include `team_id` in registration and list
+requests. Treat `connection_token` as a secret; it is returned once on creation or
+rotation. `GET /external-session-managers/{id}` exposes only
+`has_connection_token`, not the token value.
+
+The daemon sends `POST /external-session-managers/{id}/heartbeat` with its connection
+token. The parent verifies that `public_url/healthz` is reachable. HTTP `401` means the
+token is invalid; HTTP `424` means the public URL is unreachable.
+
+## Routing sessions
+
+Manager labels are selected with `allocator.*` session tags. Multiple tags use AND
+semantics, and `allocator.id` selects one manager exactly.
+
+```bash
+curl -X POST "$PARENT_PROXY_URL/start" \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{
+    "tags": {"allocator.pool":"native", "allocator.os":"linux"},
+    "params": {"message":"Run the build", "agent_type":"codex-acp"}
   }'
 ```
 
-フィールド説明:
-- `name`: ESM の識別名 (任意)
-- `url`: Proxy B の URL (`http://<k3sサーバIP>:30080`)
-- `hmac_secret`: Step 2 で生成したシークレット (Proxy B と同じ値)
-- `default: true`: このユーザーの全新規セッションを ESM にルーティング
+If a manager has `default: true`, sessions without allocator tags may route to it.
 
-### ESM 設定の確認
+## Kubernetes ESM (advanced)
 
-```bash
-curl -H "X-API-Key: $API_KEY" \
-  "$PROXY_A_URL/settings/$USERNAME" | jq '.external_session_managers'
-# 期待値: 登録した ESM の配列
-```
-
----
-
-## Step 5: 動作確認
-
-### セッションを作成して ESM 経由で起動されることを確認
+For a Kubernetes-backed ESM, run the normal `agentapi-proxy server` with Kubernetes
+provisioning enabled. Register it first to obtain the connection token, then configure:
 
 ```bash
-# セッションを開始 (Proxy A 経由)
-curl -X POST "$PROXY_A_URL/start" \
-  -H "X-API-Key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Hello from ESM test!"
-  }'
+export SESSION_MANAGER_ENABLED=true
+export SESSION_MANAGER_UPSTREAM_URL="https://parent-proxy.example.com"
+export SESSION_MANAGER_CONNECTION_TOKEN="<connection-token>"
+export SESSION_MANAGER_HMAC_SECRET="<connection-token>"
+export SESSION_MANAGER_PUBLIC_URL="https://esm.example.com"
+export AGENTAPI_K8S_SESSION_PROVISIONER_PROXY_URL="https://esm.example.com"
 ```
 
-### Proxy B 側で Pod が起動していることを確認 (k3s サーバ上)
+The same token authenticates outbound allocator polling and verifies HMAC-signed proxy
+requests. `SESSION_MANAGER_PUBLIC_URL` must be reachable from the parent, and provisioned
+session pods must call the ESM through `AGENTAPI_K8S_SESSION_PROVISIONER_PROXY_URL`.
+
+## Verification and troubleshooting
+
+After `/start`, query the returned session through the parent:
 
 ```bash
-# k3s サーバ上で確認
-kubectl get pods -n agentapi
-# agentapi-* という Pod が Running になっていれば成功
+curl -H "X-API-Key: $API_KEY" "$PARENT_PROXY_URL/<session-id>/status"
 ```
 
-### Proxy A のログで HMAC 転送を確認
-
-```bash
-kubectl logs -n agentapi-ui-dev \
-  -l app.kubernetes.io/name=agentapi-proxy \
-  --tail=50 | grep -i "session_manager\|hmac\|esm"
-```
-
----
-
-## トラブルシューティング
-
-### "authentication required" が返る
-
-Proxy B が HMAC 署名を正しく検証できていません。以下を確認してください:
-
-1. `SESSION_MANAGER_HMAC_SECRET` が Proxy A の `hmac_secret` と一致しているか
-2. Proxy B の agentapi-proxy バージョンが HMAC 検証 (canonical message format) をサポートしているか
-   - バグが修正された PR: `takutakahashi/agentapi-proxy#722`
-3. k3s サーバとメインクラスターの時刻が同期されているか (最大許容スキュー: 5分)
-   ```bash
-   timedatectl status  # k3s サーバ上で確認
-   ```
-
-### NodePort (30080) にアクセスできない
-
-```bash
-# ファイアウォール / セキュリティグループの確認
-sudo ufw status
-# または
-sudo iptables -L INPUT | grep 30080
-
-# k3s サービスの確認
-kubectl get svc -n agentapi-proxy
-# NodePort 列に 30080 が表示されることを確認
-```
-
-Helm upgrade 時に `--reuse-values` を使うと NodePort 設定が失われることがあります。
-必ず `-f session-manager-values.yaml` を使用してください。
-
-### セッション Pod が Pending のまま
-
-```bash
-kubectl describe pod -n agentapi <pod-name>
-# "Insufficient memory" / "Insufficient cpu" が表示される場合
-# → サーバのリソースを確認。推奨: CPU 2コア以上、RAM 8GB 以上
-```
-
-1-CPU サーバでは Rolling Update 中に旧 Pod が残って CPU 枯渇することがあります。
-旧 Pod を手動で削除してください:
-```bash
-kubectl delete pod -n agentapi-proxy <old-pod-name>
-```
-
-### ESM 設定が消える
-
-`PUT /settings/:username` に `external_session_managers` を含めない場合、
-既存の ESM 設定は維持されます (フィールドは `omitempty` で省略可)。
-ただし Helm upgrade 後など、設定が初期化された場合は Step 4 を再実行してください。
-
----
-
-## HMAC 署名の仕組み (参考)
-
-Proxy A が Proxy B へリクエストを転送する際、以下の canonical message を
-HMAC-SHA256 で署名します:
-
-```
-METHOD\nPATH?QUERY\nTIMESTAMP\nBODY
-```
-
-- `METHOD`: HTTP メソッド (大文字)
-- `PATH?QUERY`: リクエスト URI (クエリ文字列含む)
-- `TIMESTAMP`: Unix epoch (秒, 10 進数文字列)
-- `BODY`: リクエストボディのバイト列 (空の場合は省略)
-
-ヘッダー:
-- `X-Hub-Signature-256: sha256=<hex>` — HMAC-SHA256 署名
-- `X-Timestamp: <epoch>` — タイムスタンプ (リプレイ攻撃防止)
-
-詳細な実装は `pkg/hmacutil/hmac.go` を参照してください。
+- Run `agentapi-proxy native doctor` first for native installations.
+- `503 External session manager has not reported a routable session yet`: verify the
+  ESM public URL and heartbeat.
+- `404 Session not found`: verify that the ESM reports the concrete local session ID.
+- `invalid signature`: rotate/reinstall credentials and confirm the connection token is
+  also used as `SESSION_MANAGER_HMAC_SECRET`.
+- Heartbeat `424`: ensure the parent can reach `<public_url>/healthz`.
+- Native ESM logs and status should show successful outbound polling to the parent.

@@ -13,7 +13,7 @@
       "name": "ccplant",
       "source": "./plugins/ccplant",
       "description": "Comprehensive toolkit for agentapi-proxy: API client for session management and webhook automation. Includes API authentication, session lifecycle management, and webhook configuration for GitHub and custom services.",
-      "version": "2.0.0",
+      "version": "2.3.0",
       "author": {
         "name": "takutakahashi"
       },

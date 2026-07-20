@@ -11,6 +11,7 @@
 - [Task Group Management Endpoints](#task-group-management-endpoints)
 - [Memory Management Endpoints](#memory-management-endpoints)
 - [SlackBot Management Endpoints](#slackbot-management-endpoints)
+- [External Session Manager Endpoints](#external-session-manager-endpoints)
 - [Files Management Endpoints](#files-management-endpoints)
 - [Credentials Management Endpoints](#credentials-management-endpoints)
 - [User & Settings Endpoints](#user--settings-endpoints)
@@ -1865,6 +1866,34 @@ curl -X DELETE https://api.example.com/slackbots/slackbot-abc123 \
 **Access Control:**
 - Users can only delete their own SlackBots
 - Team members can delete team-scoped SlackBots
+
+## External Session Manager Endpoints
+
+Native and Kubernetes External Session Managers (ESMs) register with the parent proxy,
+poll outbound for allocations, and report health. The parent still proxies session traffic
+to the manager's `public_url`.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/external-session-managers` | Idempotently register by `instance_id` |
+| GET | `/external-session-managers` | List managers; supports `scope` and `team_id` |
+| GET | `/external-session-managers/:id` | Get manager metadata |
+| PATCH | `/external-session-managers/:id` | Update registration, labels, or default status |
+| DELETE | `/external-session-managers/:id` | Delete a manager |
+| POST | `/external-session-managers/:id/rotate-token` | Rotate and return a connection token once |
+| POST | `/external-session-managers/:id/heartbeat` | Report public URL, version, and active sessions |
+
+Registration requires `instance_id` and `name`. Optional fields are `manager_id`,
+`scope` (`user` or `team`), `team_id`, `labels`, `default`, `public_url`, `version`, and
+`rotate_token`. The response can include `connection_token` only on creation or rotation;
+later reads expose `has_connection_token` instead.
+
+Heartbeat uses the ESM connection token rather than normal API-key authentication. The
+parent verifies that `public_url/healthz` is reachable; invalid tokens return `401` and an
+unreachable public URL returns `424`.
+
+Session `tags` prefixed with `allocator.` select managers by exact label match. Multiple
+allocator tags use AND semantics, while `allocator.id` matches the manager ID directly.
 
 ## Files Management Endpoints
 

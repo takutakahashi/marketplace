@@ -1,24 +1,13 @@
 ---
 name: agentapi-proxy-api
 description: |
-  Interact with agentapi-proxy API using API Key authentication for session management.
-  Use when you need to: (1) Create new agentapi sessions, (2) Search and list existing sessions,
-  (3) Delete sessions, (4) Route requests to specific session instances, (5) Manage session sharing,
-  (6) Access user settings and notifications, (7) Create and manage tasks associated with sessions,
-  (8) Manage task groups for organizing tasks, (9) Create and manage memory entries for storing
-  contextual information, (10) Manage credentials for authentication (e.g., Claude Code OAuth tokens),
-  (11) Manage files (e.g., SSH keys) that are placed in agent sessions at startup,
-  (12) Create and manage session profiles (reusable session configurations),
-  (13) Create and manage sandbox policies (network filter rule sets for sessions),
-  (14) Manage Codex device authentication flow,
-  (15) Upload HTML assets and get externally reachable asset URLs,
-  (16) Configure GitHub sync for settings (via git_sync field in PUT /settings/:name),
-  (17) Transfer supported resources between user and team ownership scopes.
-  Supports multiple authentication methods including static API keys (X-API-Key header) and
-  Authorization Bearer tokens.
-  Note: For schedule management, use the schedule-management skill instead. For webhook management,
-  use the webhook-management skill instead. For SlackBot management, use the slackbot-management
-  skill instead.
+  Interact with agentapi-proxy using its CLI or API-key/Bearer-authenticated REST API. Use for
+  session lifecycle, routing and sharing; status and message monitoring; user settings and
+  notifications; tasks, task groups, memories and HTML assets; credentials, managed files,
+  session profiles and sandbox policies; Codex device authentication; GitHub settings sync;
+  ownership transfers; and native or Kubernetes External Session Manager registration and
+  lifecycle. Use the dedicated schedule-management, webhook-management, or slackbot-management
+  skill for those resource types.
 ---
 
 # agentapi-proxy API
@@ -291,6 +280,14 @@ curl -X POST https://api.example.com/resources/transfer \
     "dry_run": true
   }'
 ```
+
+### Managing External Session Managers
+
+External Session Manager registration, listing, update, deletion, token rotation, and heartbeat
+are available through `/external-session-managers`. They are not yet available via an
+`agentapi-proxy client` subcommand, so use the REST API directly. See
+`../../references/API_REFERENCE.md` and the `session-manager-setup` skill for request fields, native
+installation, allocator labels, and lifecycle commands.
 
 ### Managing Files
 
